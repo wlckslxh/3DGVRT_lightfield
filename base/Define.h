@@ -32,14 +32,14 @@
 #define STOP_LIGHT 0
 
 #define ASSET 0
-#define MULTIQUEUE 0
-#define DIRECTRENDER 1
+#define MULTIQUEUE 0	// 0 is Default
+#define DIRECTRENDER 1	// 1 is Default
 #define TIMER_CORRECTION 1
 #define TEXTURE_COMPRESSION 1
 
 #define ANY_HIT 0	// This macro should be managed with define.glsl
 
-#define USE_ANIMATION 0 // 0 is Deafult
+#define USE_ANIMATION 0 // 0 is Default
 
 #if ASSET == 0
 #define ASSET_PATH "models/suntemple_simple/SunTemple.gltf"
