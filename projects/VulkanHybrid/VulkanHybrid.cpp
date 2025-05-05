@@ -83,8 +83,6 @@ public:
 	// One sampler for the frame buffer color attachments
 	VkSampler colorSampler{ VK_NULL_HANDLE };
 
-	//VkCommandBuffer offScreenCmdBuffer{ VK_NULL_HANDLE };
-
 	VkPipelineStageFlags offscreenWaitStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 	VkPipelineStageFlags lightingWaitStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
@@ -1156,21 +1154,6 @@ public:
 		};
 		descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 
-		// Unbound set
-		//std::vector<VkDescriptorBindingFlagsEXT> descriptorBindingFlags = {
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT,
-		//};
 		std::vector<VkDescriptorBindingFlagsEXT> descriptorBindingFlags(setLayoutBindings.size(), 0);
 
 		VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags{};
@@ -1218,14 +1201,6 @@ public:
 
 		for (auto& frame : frameObjects) {
 			VkDescriptorSet& descriptorSetComposition = frame.descriptorSetComposition;
-			//VkDescriptorSetVariableDescriptorCountAllocateInfoEXT variableDescriptorCountAllocInfo{};
-			//uint32_t variableDescCounts[] = { static_cast<uint32_t>(scene.textures.size()) };
-			//variableDescriptorCountAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT;
-			//variableDescriptorCountAllocInfo.descriptorSetCount = 1;
-			//variableDescriptorCountAllocInfo.pDescriptorCounts = variableDescCounts;
-
-			//allocInfo.pNext = &variableDescriptorCountAllocInfo;
-
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSetComposition));
 
 			VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo = vks::initializers::writeDescriptorSetAccelerationStructureKHR();
@@ -1522,10 +1497,12 @@ public:
 	bool initVulkan() {
 		// Auto-compile shaders
 		// Remove 'pause' from batch file for speedy execution
+		std::cout << "*** Shader compilation BEGIN ***\n";
 		system("cd ..\\shaders\\glsl\\base\\ && baseCompile.bat");
 		std::cout << "\t...base project shaders compile completed.\n";
 		system("cd ..\\shaders\\glsl\\VulkanHybrid\\ && VulkanHybridCompile.bat");
 		std::cout << "\t...Vulkan Hybrid project shaders compile completed.\n";
+		std::cout << "*** Shader compilation END ***\n";
 
 		bool result = VulkanRTBase::initVulkan();
 		if (!result) {

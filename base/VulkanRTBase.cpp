@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Vulkan RT base class
 * 
 * Graphics Lab, Sogang Univ
@@ -1198,6 +1198,7 @@ VulkanRTBase::VulkanRTBase()
 
 	// Main Console
 	setupConsole("Abura Soba - Console");
+	std::cout << "***** Team Abura Soba's 3D Gaussian Vulkan Ray Tracing *****\n";
 #endif
 }
 
@@ -1350,29 +1351,31 @@ bool VulkanRTBase::initVulkan()
 			selectedDevice = index;
 		}
 	}
-	//if (commandLineParser.isSet("gpulist")) {
+
+	std::cout << "*** Find an adequate physical device BEGIN ***\n";
 	if (true) {
 		bool isAdequate = false;
-		std::cout << "\nAvailable Vulkan devices" << "\n";
-		std::cout << "----------------------------------------------------------\n";
+		std::cout << "Available Vulkan devices" << "\n";
+		std::cout << "----------------------------------------------------\n";
 		for (uint32_t i = 0; i < gpuCount; i++) {
 			VkPhysicalDeviceProperties deviceProperties;
 			vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
-			std::cout << "Device [" << i << "] : " << deviceProperties.deviceName << std::endl;
-			std::cout << " Type: " << vks::tools::physicalDeviceTypeString(deviceProperties.deviceType) << "\n";
-			std::cout << " API: " << (deviceProperties.apiVersion >> 22) << "." << ((deviceProperties.apiVersion >> 12) & 0x3ff) << "." << (deviceProperties.apiVersion & 0xfff) << "\n";
+			std::cout << "\tDevice [" << i << "] : " << deviceProperties.deviceName << std::endl;
+			std::cout << "\t\tType: " << vks::tools::physicalDeviceTypeString(deviceProperties.deviceType) << "\n";
+			std::cout << "\t\tAPI: " << (deviceProperties.apiVersion >> 22) << "." << ((deviceProperties.apiVersion >> 12) & 0x3ff) << "." << (deviceProperties.apiVersion & 0xfff) << "\n";
 			bool result = sg::checkDeviceExtensionSupport(physicalDevices[i], enabledDeviceExtensions);
 			if (result) {
 				selectedDevice = i;
 				isAdequate = true;
-				std::cout << "- Adequate device found\n";
-				std::cout << "----------------------------------------------------------\n";
+				std::cout << "\t===> Adequate device found!\n";
+				std::cout << "----------------------------------------------------\n";
 				break;
 			}
-			std::cout << "----------------------------------------------------------\n";
+			std::cout << "----------------------------------------------------\n";
 		}
 		if (!isAdequate) exit(-1);
 	}
+	std::cout << "*** Find an adequate physical device END ***\n";
 #endif
 
 	physicalDevice = physicalDevices[selectedDevice];

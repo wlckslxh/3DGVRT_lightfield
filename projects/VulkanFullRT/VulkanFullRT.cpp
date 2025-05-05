@@ -603,16 +603,6 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 6),
 		};
 
-		// Unbound set
-		//std::vector<VkDescriptorBindingFlagsEXT> descriptorBindingFlags = {
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	0,
-		//	VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT,
-		//};
 		std::vector<VkDescriptorBindingFlagsEXT> descriptorBindingFlags(setLayoutBindings.size(), 0);
 
 		VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags{};
@@ -627,15 +617,7 @@ public:
 		for (auto& frame : frameObjects)
 		{
 			VkDescriptorSet& descriptorSet = frame.descriptorSet;
-
-			//VkDescriptorSetVariableDescriptorCountAllocateInfoEXT variableDescriptorCountAllocInfo{};
-			//uint32_t variableDescCounts[] = { imageCount };
-			//variableDescriptorCountAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT;
-			//variableDescriptorCountAllocInfo.descriptorSetCount = 1;
-			//variableDescriptorCountAllocInfo.pDescriptorCounts = variableDescCounts;
-
 			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-			//descriptorSetAllocateInfo.pNext = &variableDescriptorCountAllocInfo;
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet));	// descriptor set
 
 			// WriteDescriptorSet for TLAS (binding0)
@@ -1018,10 +1000,12 @@ public:
 	bool initVulkan() {
 		// Auto-compile shaders
 		// Remove 'pause' from batch file for speedy execution
+		std::cout << "*** Shader compilation BEGIN ***\n";
 		system("cd ..\\shaders\\glsl\\base\\ && baseCompile.bat");
 		std::cout << "\t...base project shaders compile completed.\n";
 		system("cd ..\\shaders\\glsl\\VulkanFullRT\\ && VulkanFullRTCompile.bat");
 		std::cout << "\t...Vulkan FullRT project shaders compile completed.\n";
+		std::cout << "*** Shader compilation END ***\n";
 
 		bool result = VulkanRTBase::initVulkan();
 		if (!result) {

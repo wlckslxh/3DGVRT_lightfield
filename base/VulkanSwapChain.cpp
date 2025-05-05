@@ -171,7 +171,6 @@ void VulkanSwapChain::initSurface(screen_context_t screen_context, screen_window
 	{
 		throw std::runtime_error{ "The selected graphics queue family does not support timestamp queries!" };
 	}
-	std::cout << "Timestamp queries are supported!\n";
 
 	// Get list of supported surface formats
 	uint32_t formatCount;
@@ -283,27 +282,29 @@ void VulkanSwapChain::create(uint32_t *width, uint32_t *height, bool vsync, bool
 	}
 
 	// Check which present mode will be used.
-#ifndef VK_USE_PLATFORM_ANDROID_KHR
-	std::cout << "Present mode(VkPresentModeKHR) is ";
-	switch (swapchainPresentMode) {
-	case 0:
-		std::cout << "VK_PRESENT_MODE_IMMEDIATE_KHR";
-		break;
-	case 1:
-		std::cout << "VK_PRESENT_MODE_MAILBOX_KHR";
-		break;
-	case 2:
-		std::cout << "VK_PRESENT_MODE_FIFO_KHR";
-		break;
-	case 3:
-		std::cout << "VK_PRESENT_MODE_FIFO_RELAXED_KHR";
-		break;
-	default:
-		std::cout << "none of the four major modes";
-		break;
+	{
+//#ifndef VK_USE_PLATFORM_ANDROID_KHR
+//		std::cout << "Present mode(VkPresentModeKHR) is ";
+//		switch (swapchainPresentMode) {
+//		case 0:
+//			std::cout << "VK_PRESENT_MODE_IMMEDIATE_KHR";
+//			break;
+//		case 1:
+//			std::cout << "VK_PRESENT_MODE_MAILBOX_KHR";
+//			break;
+//		case 2:
+//			std::cout << "VK_PRESENT_MODE_FIFO_KHR";
+//			break;
+//		case 3:
+//			std::cout << "VK_PRESENT_MODE_FIFO_RELAXED_KHR";
+//			break;
+//		default:
+//			std::cout << "none of the four major modes";
+//			break;
+//		}
+//		std::cout << ".\n";
+//#endif
 	}
-	std::cout << ".\n";
-#endif
 
 	// Determine the number of images
 	//uint32_t desiredNumberOfSwapchainImages = surfCaps.minImageCount + 1;
