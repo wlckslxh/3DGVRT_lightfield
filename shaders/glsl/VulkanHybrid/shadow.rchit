@@ -1,8 +1,11 @@
 /*
  * Sogang Univ, Graphics Lab, 2024
+ *
+ * Abura Soba, 2025
  * 
- * Vulkan Full Raytracing
- * 
+ * Hybrid (Rasterization + Ray Tracing)
+ *
+ * Shadow hit shader
  */
 
 #version 460

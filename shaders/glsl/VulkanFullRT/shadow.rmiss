@@ -1,8 +1,11 @@
 /*
  * Sogang Univ, Graphics Lab, 2024
  * 
- * Vulkan Full Raytracing
+ * Abura Soba, 2025
  * 
+ * Full Ray Tracing
+ *
+ * Shadow miss shader
  */
 
 #version 460

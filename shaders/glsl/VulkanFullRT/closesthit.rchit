@@ -1,8 +1,11 @@
 /*
  * Sogang Univ, Graphics Lab, 2024
  * 
- * Vulkan Full Raytracing
+ * Abura Soba, 2025
  * 
+ * Full Ray Tracing
+ *
+ * Closest hit shader
  */
 
 #version 460
@@ -120,66 +123,11 @@ void main()
 		vec3 shadowRayOrigin = tri.pos + SHADOW_RAY_ORIGIN_MOVEMENT_EPSILON * shadowRayDirection;
 		shadowed = false;
 		if (pushConstants.rayOption.shadowRay) {
-#ifndef USE_RAY_QUERY
 			shadowed = true;
 #if ANY_HIT
 			traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, shadowRayOrigin, RAY_TMIN, shadowRayDirection, tmax, 1);
 #else
 			traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT | gl_RayFlagsOpaqueEXT, 0xFF, 1, 0, 1, shadowRayOrigin, RAY_TMIN, shadowRayDirection, tmax, 1);
-#endif
-#else
-			rayQueryEXT shadowRayQuery;
-#if ANY_HIT
-			rayQueryInitializeEXT(shadowRayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT, 
-				0xFF, shadowRayOrigin, RAY_TMIN, shadowRayDirection, tmax);
-			while (rayQueryProceedEXT(shadowRayQuery)) {
-				if (rayQueryGetIntersectionTypeEXT(shadowRayQuery, false) == gl_RayQueryCandidateIntersectionTriangleEXT) {
-					const uint triIndex = rayQueryGetIntersectionPrimitiveIndexEXT(shadowRayQuery, false) * 3;	 // primitiveIndex * 3
-					const vec2 barycentrics = rayQueryGetIntersectionBarycentricsEXT(shadowRayQuery, false);
-
-					const uint geometryID =  rayQueryGetIntersectionGeometryIndexEXT(shadowRayQuery, false);
-					GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(geometryID)];
-
-					Indices    indices = Indices(geometryNode.indexBufferDeviceAddress);
-					Vertices   vertices = Vertices(geometryNode.vertexBufferDeviceAddress);
-		
-					vec2 vertices_uv[3];
-					vec2 uv;
-					vec4 vertices_color[3];
-					vec4 color;
-
-					for (uint i = 0; i < 3; i++) {
-						const uint offset = indices.i[triIndex + i] * 7;
-						vec4 d1 = vertices.v[offset + 1]; 
-						vec4 d2 = vertices.v[offset + 2];
-
-						vertices_uv[i] = d1.zw;
-						vertices_color[i] = d2;
-					}
-					uv = vertices_uv[0] * (1.0f - barycentrics.x - barycentrics.y) + vertices_uv[1] * barycentrics.x + vertices_uv[2] * barycentrics.y;
-					color = vertices_color[0] * (1.0f - barycentrics.x - barycentrics.y) + vertices_color[1] * barycentrics.x + vertices_color[2] * barycentrics.y;
-					
-					if (nonuniformEXT(geometryNode.textureIndexBaseColor) > -1) {
-						color = texture(textures[nonuniformEXT(geometryNode.textureIndexBaseColor)], uv);
-					}
-
-					if (color.a != 0.0f) {
-						rayQueryConfirmIntersectionEXT(shadowRayQuery);
-					}
-				}
-
-				if (rayQueryGetIntersectionTypeEXT(shadowRayQuery, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
-					shadowed = true;
-				}
-			}
-#else
-			rayQueryInitializeEXT(shadowRayQuery, topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT, 
-				0xFF, shadowRayOrigin, RAY_TMIN, shadowRayDirection, tmax);
-			rayQueryProceedEXT(shadowRayQuery);
-
-			if (rayQueryGetIntersectionTypeEXT(shadowRayQuery, true) == gl_RayQueryCommittedIntersectionTriangleEXT)  
-				shadowed = true;
-#endif
 #endif
 		}
 		if (!shadowed) {

@@ -1,16 +1,15 @@
 /*
- * Sogang University
+ * Sogang Univ, Graphics Lab, 2024
  *
- * Graphics Lab, 2024
+ * Abura Soba, 2025
+ *
+ * define.glsl
  *
  */
-
-#define DO_NORMAL_MAPPING
 
 #define RAY_TMIN 0.1f
 #define SHADOW_RAY_ORIGIN_MOVEMENT_EPSILON 0.1f	
 
-//#define USE_RAY_QUERY
 #define ANY_HIT 0	// This macro should be managed with Define.h
 
 #define ITERATIONS 5

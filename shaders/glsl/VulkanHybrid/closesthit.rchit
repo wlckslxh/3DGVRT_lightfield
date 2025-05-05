@@ -1,8 +1,11 @@
 /*
- * Sogang University
+ * Sogang Univ, Graphics Lab, 2024
  *
- * Graphics Lab, 2024
+ * Abura Soba, 2025
+ * 
+ * Hybrid (Rasterization + Ray Tracing)
  *
+ * Closest hit shader
  */
 
 #version 460
@@ -61,11 +64,9 @@ void main()
 
 	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geometryNode.vertexBufferDeviceAddress, geometryNode.indexBufferDeviceAddress);
 
-	#ifdef DO_NORMAL_MAPPING
 	if (geometryNode.textureIndexNormal > -1) {
 		tri.normal = CalculateNormal(textures[nonuniformEXT(geometryNode.textureIndexNormal)], tri.normal, tri.uv, tri.tangent);
 	}
-	#endif
 
 	if (nonuniformEXT(geometryNode.textureIndexBaseColor) > -1) {
 		tri.color.rgb = pow(texture(textures[nonuniformEXT(geometryNode.textureIndexBaseColor)], tri.uv).rgb, vec3(2.2));

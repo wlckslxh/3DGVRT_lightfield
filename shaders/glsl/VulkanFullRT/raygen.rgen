@@ -1,8 +1,11 @@
 /*
  * Sogang Univ, Graphics Lab, 2024
  * 
- * Vulkan Full Ray Tracing
+ * Abura Soba, 2025
  * 
+ * Full Ray Tracing
+ *
+ * Ray generation shader
  */
 
 #version 460

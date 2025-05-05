@@ -1,8 +1,11 @@
-/* Copyright (c) 2023, Sascha Willems
+/*
+ * Sogang Univ, Graphics Lab, 2024
  *
- * SPDX-License-Identifier: MIT
+ * Abura Soba, 2025
+ * 
+ * Hybrid (Rasterization + Ray Tracing)
  *
- * Sogang Univ, Graphics Lab
+ * Miss shader
  */
 
 #version 460
