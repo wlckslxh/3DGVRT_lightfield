@@ -7,8 +7,6 @@
 
 #define DO_NORMAL_MAPPING
 
-#define SPLIT_BLAS 0	// This macro should be managed with Define.h
-
 #define RAY_TMIN 0.1f
 #define SHADOW_RAY_ORIGIN_MOVEMENT_EPSILON 0.1f	
 
@@ -16,8 +14,6 @@
 #define ANY_HIT 0	// This macro should be managed with Define.h
 
 #define ITERATIONS 5
-
-#define DYNAMIC_SCENE 0 // This macro should be managed with Define.h
 
 struct RayOption {
 	bool shadowRay;

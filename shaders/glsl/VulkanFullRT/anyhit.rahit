@@ -20,46 +20,17 @@
 
 hitAttributeEXT vec2 attribs;
 layout(binding = 4, set = 0) uniform sampler2D textures[];
-
-#if SPLIT_BLAS
-layout(binding = 6, set = 0) buffer Geometries{ GeometryInfo geoms[]; } geometries;
-layout(binding = 7, set = 0) buffer Materials{ MaterialInfo mats[]; } materials;
-#else
 layout(binding = 6, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-#endif
-
-#if DYNAMIC_SCENE
-layout(constant_id = 4) const uint numGeometryNodesForStatic = 1;
-#endif
 
 #include "../base/geometryfunctions.glsl"
 
 void main()
 {
-#if SPLIT_BLAS
-	GeometryInfo geom = geometries.geoms[nonuniformEXT(gl_InstanceID)];
-
-	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geom.vertexBufferDeviceAddress, geom.indexBufferDeviceAddress);// 4 * 4 * 7(vec4 * float * Vertex size)
-
-	MaterialInfo mat = materials.mats[nonuniformEXT(tri.vertices[0].objectID)];
-
-	vec4 color = texture(textures[nonuniformEXT(mat.textureIndexBaseColor)], tri.uv);
-#else
-#if DYNAMIC_SCENE
-	uint instanceIndex = nonuniformEXT(gl_InstanceCustomIndexEXT);
-	uint nodeIndex = (instanceIndex == 0) // is Static?
-		? nonuniformEXT(gl_GeometryIndexEXT)
-		: numGeometryNodesForStatic + (instanceIndex - 1);
-
-	GeometryNode geometryNode = geometryNodes.nodes[nodeIndex];
-#else // !SPLIT_BLAS && !DYNAMIC_SCENE
 	GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(gl_GeometryIndexEXT)];
-#endif // DYNAMIC_SCENE 
 
 	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geometryNode.vertexBufferDeviceAddress, geometryNode.indexBufferDeviceAddress);
 
 	vec4 color = texture(textures[nonuniformEXT(geometryNode.textureIndexBaseColor)], tri.uv);
-#endif
 	if(color.a == 0.0f) {
 		ignoreIntersectionEXT;
 	}

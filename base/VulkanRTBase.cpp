@@ -17,13 +17,6 @@
 #include <CoreVideo/CVDisplayLink.h>
 #endif
 
-#if DYNAMIC_SCENE
-	#if FIXED_INSTANCING
-		int32_t g_numInstancing = BLAS_INSTANCING_MAX;
-	#else
-		int32_t g_numInstancing = 1;
-	#endif
-#endif
 std::vector<const char*> VulkanRTBase::args;
 
 VkResult VulkanRTBase::createInstance(bool enableValidation)
@@ -346,10 +339,6 @@ void VulkanRTBase::nextFrame(std::vector<BaseFrameObject*>& frameObjects)
 		viewUpdated = false;
 	}
 
-#if DYNAMIC_SCENE
-	sceneObjManager.updateObjects(frameTimer);
-#endif
-
 	render();
 	frameCounter++;
 	auto tEnd = std::chrono::high_resolution_clock::now();
@@ -470,9 +459,6 @@ void VulkanRTBase::renderLoop(std::vector<BaseFrameObject*>& frameObjects)
 		// Render frame
 		if (prepared)
 		{
-#if DYNAMIC_SCENE
-			sceneObjManager.updateObjects(frameTimer);
-#endif
 			auto tStart = std::chrono::high_resolution_clock::now();
 			render();
 			frameCounter++;
@@ -832,40 +818,6 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	ImGui::PopStyleVar();
 #endif
-
-#if DYNAMIC_SCENE & !FIXED_INSTANCING
-	ImGui::NewLine();
-	ImGui::Text("Instancing Count");
-
-	int curNumInstancing = g_numInstancing;
-	ImGui::InputInt("##input_int", &curNumInstancing);
-
-	int buttonValue = 1;
-	while (buttonValue <= BLAS_INSTANCING_MAX) 
-	{
-		if (ImGui::Button(std::string(std::to_string(buttonValue) + "##instancing button").c_str()))
-		{
-			curNumInstancing = buttonValue;
-		}
-		ImGui::SameLine();
-
-		buttonValue *= 10;
-	}
-
-	curNumInstancing = std::clamp(curNumInstancing, 1, int(BLAS_INSTANCING_MAX));
-
-
-	if (g_numInstancing != curNumInstancing)
-	{
-		sceneObjManager.totalInstancingCount = 0; // reset
-		g_numInstancing = curNumInstancing;
-		for (auto& pair : sceneObjManager.instancingObjects)
-		{
-			sceneObjManager.totalInstancingCount += pair.second->Reset_InstancingData(curNumInstancing);
-		}
-	}
-#endif
-
 
 	ImGui::End();
 	ImGui::PopStyleVar();
@@ -3762,13 +3714,8 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #elif ASSET == 1
 	switch (camIdx) {
 	case 0:
-#if !DYNAMIC_SCENE
 		camera.setTranslation(glm::vec3(1.146842, 2.282518, 1.067378));
 		camera.setRotation(glm::vec3(-22.524939, 58.374725, 0.000000));
-#else
-		camera.setTranslation(glm::vec3(4.20287, 2.5, 0.18704));
-		camera.setRotation(glm::vec3(-18.35, 79.5251, 0));
-#endif
 		break;
 	case 1:
 		camera.setTranslation(glm::vec3(-6.497121, 1.637290, -1.421643));

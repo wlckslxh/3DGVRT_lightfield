@@ -45,15 +45,6 @@
 
 #include "Define.h"
 
-#if SPLIT_BLAS
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/hash.hpp>
-#include <unordered_map>
-namespace AABB_Triangle_Clipping {
-	struct _AABB;
-}
-#endif
-
 namespace vkglTF
 {
 	static constexpr uint32_t skinnedMeshMaxNum = 20;
@@ -243,13 +234,6 @@ namespace vkglTF
 		glm::mat4 getRotationMatrix();
 
 		int32_t blasIndex;
-#if DYNAMIC_SCENE
-		bool transformUpdated = false;
-		bool hasUniform = true;
-		bool instancing = false;
-		bool isStatic = true;
-		std::vector<glm::vec3> generatePositions;
-#endif
 
 		void update(); // Update only Uniform Buffer, not member "matrix".
 		~Node();
@@ -317,19 +301,6 @@ namespace vkglTF
 		static std::vector<VkVertexInputAttributeDescription> inputAttributeDescriptions(uint32_t binding, const std::vector<VertexComponent> components);
 		/** @brief Returns the default pipeline vertex input state create info structure for the requested vertex components */
 		static VkPipelineVertexInputStateCreateInfo* getPipelineVertexInputState(const std::vector<VertexComponent> components);
-	
-#if SPLIT_BLAS
-		bool operator==(const Vertex& other) const {
-			return pos == other.pos &&
-				normal == other.normal &&
-				uv == other.uv &&
-				color == other.color &&
-				joint0 == other.joint0 &&
-				weight0 == other.weight0 &&
-				tangent == other.tangent &&
-				objectID.data == other.objectID.data;
-		}
-#endif
 	};
 
 	enum FileLoadingFlags {
@@ -397,14 +368,6 @@ namespace vkglTF
 		bool buffersBound = false;
 		std::string path;
 
-#if SPLIT_BLAS
-		//TODO : replace to struct Dimensions
-		glm::vec3 minPos{ FLT_MAX ,FLT_MAX ,FLT_MAX }, maxPos{ -FLT_MAX,-FLT_MAX,-FLT_MAX };
-		std::vector<Vertices> splittedVertices;
-		std::vector<Indices> splittedIndices;
-		//int numCellsTotal;
-#endif
-
 		Model() {};
 		~Model();
 		void loadNode(vkglTF::Node* parent, const tinygltf::Node& node, uint32_t nodeIndex, const tinygltf::Model& model, std::vector<uint32_t>& indexBuffer, std::vector<Vertex>& vertexBuffer, float globalscale);
@@ -414,13 +377,7 @@ namespace vkglTF
 		void loadLights(tinygltf::Model& gltfModel);
 		void loadAnimations(tinygltf::Model& gltfModel);
 
-#if SPLIT_BLAS
-		void clipCell_1VB(std::vector<Vertex>& vertexBuffer, std::vector<uint32_t>& indexBuffer, std::unordered_map<Vertex, uint32_t>& uniqueVertices, std::vector<AABB_Triangle_Clipping::_AABB> gridAabb, int cellCnt, std::vector<std::vector<uint32_t>>& splittedIdx);
-		void saveGeometries_SBLAS(std::vector<Vertex>& vertexBuffer, std::vector<uint32_t>& indexBuffer, VkQueue transferQueue);
-		void saveGeometries_SBLAS_1VB(std::vector<Vertex>& vertexBuffer, std::vector<uint32_t>& indexBuffer, VkQueue transferQueue);
-#endif
 		void saveGeometries(std::vector<Vertex>& vertexBuffer, std::vector<uint32_t>& indexBuffer, VkQueue transferQueue);
-
 
 		void loadFromFile(std::string filename, vks::VulkanDevice* device, VkQueue transferQueue, uint32_t fileLoadingFlags = vkglTF::FileLoadingFlags::None, float scale = 1.0f);
 		void bindBuffers(VkCommandBuffer commandBuffer);
@@ -434,20 +391,3 @@ namespace vkglTF
 		void prepareNodeDescriptor(vkglTF::Node* node, VkDescriptorSetLayout descriptorSetLayout);
 	};
 }
-
-#if SPLIT_BLAS
-namespace std {
-	template<> struct hash<vkglTF::Vertex> {
-		size_t operator()(vkglTF::Vertex const& vertex) const {
-			return (((hash<glm::vec3>()(vertex.pos) ^
-				(hash<glm::vec3>()(vertex.normal) << 1)) >> 1) ^
-				(hash<glm::vec2>()(vertex.uv) << 1)) ^
-				(((hash<glm::vec4>()(vertex.color) ^
-					(hash<glm::vec4>()(vertex.joint0) << 1)) >> 1) ^
-					(hash<glm::vec4>()(vertex.weight0) << 1)) ^
-				(((hash<glm::vec4>()(vertex.tangent) ^
-					(hash<uint32_t>()(vertex.objectID.data) << 1)) >> 1));
-		}
-	};
-}
-#endif

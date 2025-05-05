@@ -51,29 +51,16 @@ layout(binding = 9, set = 0) uniform uniformBufferStaticLight
 	Light lights[numOfStaticLights];
 } uboStaticLight;
 layout(binding = 10) uniform sampler2D textures[];
-
-#if SPLIT_BLAS
-layout(binding = 11, set = 0) buffer Geometries{ GeometryInfo geoms[]; } geometries;
-layout(binding = 12, set = 0) buffer Materials{ MaterialInfo mats[]; } materials;
-#else
 layout(binding = 11, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-#endif
 
 #include "../base/geometryfunctions.glsl"
 
 void main()
 {
-#if SPLIT_BLAS
-	GeometryInfo geom = geometries.geoms[nonuniformEXT(gl_InstanceID)];
-
-	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geom.vertexBufferDeviceAddress, geom.indexBufferDeviceAddress);
-
-	MaterialInfo geometryNode = materials.mats[nonuniformEXT(tri.vertices[0].objectID)];
-#else
 	GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(gl_GeometryIndexEXT)];
 
 	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geometryNode.vertexBufferDeviceAddress, geometryNode.indexBufferDeviceAddress);
-#endif
+
 	#ifdef DO_NORMAL_MAPPING
 	if (geometryNode.textureIndexNormal > -1) {
 		tri.normal = CalculateNormal(textures[nonuniformEXT(geometryNode.textureIndexNormal)], tri.normal, tri.uv, tri.tangent);
@@ -104,11 +91,7 @@ void main()
 	rayPayload.color += vec3(0.05f) * tri.color.rgb; // ambient
 	rayPayload.dist = gl_RayTmaxEXT;
 	rayPayload.normal = tri.normal;
-#if SPLIT_BLAS
-	rayPayload.objectID = tri.vertices[0].objectID;
-#else
 	rayPayload.objectID = gl_GeometryIndexEXT;
-#endif
 
 	vec3 F0 = vec3(pow((geometryNode.ior - 1.0f) / (geometryNode.ior + 1.0f), 2.0f));
 	F0 = mix(F0, tri.color.rgb, aoRoughnessMetallic.b);

@@ -39,9 +39,6 @@ layout(constant_id = 0) const uint numOfLights = 1;
 layout(constant_id = 1) const uint numOfDynamicLights = 1;
 layout(constant_id = 2) const uint numOfStaticLights = 1;
 layout(constant_id = 3) const uint staticLightOffset = 1;
-#if DYNAMIC_SCENE
-layout(constant_id = 4) const uint numGeometryNodesForStatic = 1;
-#endif
 
 layout(binding = 2, set = 0) uniform uniformBuffer
 {
@@ -55,79 +52,17 @@ layout(binding = 5, set = 0) uniform uniformBufferStaticLight
 } uboStaticLight;
 
 layout(binding = 4, set = 0) uniform sampler2D textures[];
-
-#if SPLIT_BLAS
-layout(binding = 6, set = 0) buffer Geometries{ GeometryInfo geoms[]; } geometries;
-layout(binding = 7, set = 0) buffer Materials{ MaterialInfo mats[]; } materials;
-#else
 layout(binding = 6, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-#endif
 
 #include "../base/geometryfunctions.glsl"
 
 void main()
 {
-
-#if SPLIT_BLAS
-	GeometryInfo geom = geometries.geoms[nonuniformEXT(gl_InstanceID)];
-
-	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geom.vertexBufferDeviceAddress, geom.indexBufferDeviceAddress);// 4 * 4 * 7(vec4 * float * Vertex size)
-
-	MaterialInfo mat = materials.mats[nonuniformEXT(tri.vertices[0].objectID)];
-
-	#ifdef DO_NORMAL_MAPPING
-	if (mat.textureIndexNormal > -1) {
-		tri.normal = CalculateNormal(textures[nonuniformEXT(mat.textureIndexNormal)], tri.normal, tri.uv, tri.tangent);
-	}
-	#endif
-
-	if (nonuniformEXT(mat.textureIndexBaseColor) > -1) {
-		tri.color.rgb = pow(texture(textures[nonuniformEXT(mat.textureIndexBaseColor)], tri.uv).rgb, vec3(2.2f));
-	}
-
-	vec3 aoRoughnessMetallic = vec3(1.0f);
-	if (nonuniformEXT(mat.textureIndexMetallicRoughness) > -1) {
-		aoRoughnessMetallic = texture(textures[nonuniformEXT(mat.textureIndexMetallicRoughness)], tri.uv).rgb;
-	}
-	aoRoughnessMetallic *= vec3(1.0f, mat.roughnessFactor, mat.metallicFactor);
-
-	rayPayload.color = vec3(0.0f);
-	if (nonuniformEXT(mat.textureIndexEmissive) > -1){
-		rayPayload.color += texture(textures[nonuniformEXT(mat.textureIndexEmissive)], tri.uv).rgb;
-	}
-
-	rayPayload.effectFlag = 0;
-	if ((mat.reflectance > 0.0f) && pushConstants.rayOption.reflection) { // Kr
-		rayPayload.effectFlag = 1 + int(tri.vertices[0].objectID);
-		tri.color.rgb = vec3(0.0f);
-	}
-	else if ((mat.refractance > 0.0f) && pushConstants.rayOption.refraction) { // Kt
-		rayPayload.effectFlag = -1 - int(tri.vertices[0].objectID);
-		tri.color.rgb = vec3(0.0f);
-	}
-
-	vec3 F0 = vec3(((mat.ior - 1.0f) / (mat.ior + 1.0f)) * ((mat.ior - 1.0f) / (mat.ior + 1.0f)));
-#else
 	uint nodeIndex;
-#if DYNAMIC_SCENE
-	uint instanceIndex = gl_InstanceCustomIndexEXT;
-	nodeIndex = (instanceIndex == 0) // is Static?
-		? gl_GeometryIndexEXT
-		: numGeometryNodesForStatic + (instanceIndex - 1);
-#else
 	nodeIndex = gl_GeometryIndexEXT;
-#endif
 	GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(nodeIndex)];
 
 	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geometryNode.vertexBufferDeviceAddress, geometryNode.indexBufferDeviceAddress);
-
-#if DYNAMIC_SCENE
-	mat4 worldMat = mat4(gl_ObjectToWorldEXT);
-	mat3 normalMatrix = transpose(inverse(mat3(worldMat)));
-	tri.normal = normalize(normalMatrix * tri.normal);
-	tri.pos = (worldMat * vec4(tri.pos, 1.0)).xyz;
-#endif
-
 
 	if (geometryNode.textureIndexNormal > -1) {
 		tri.normal = CalculateNormal(textures[nonuniformEXT(geometryNode.textureIndexNormal)], tri.normal, tri.uv, tri.tangent);
@@ -161,7 +96,6 @@ void main()
 		
 
 	vec3 F0 = vec3(((geometryNode.ior - 1.0f) / (geometryNode.ior + 1.0f)) * ((geometryNode.ior - 1.0f) / (geometryNode.ior + 1.0f)));
-#endif
 	F0 = mix(F0, tri.color.rgb, aoRoughnessMetallic.b);
 	
 	vec3 V = normalize(vec3(ubo.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)) - tri.pos);
@@ -203,27 +137,17 @@ void main()
 					const uint triIndex = rayQueryGetIntersectionPrimitiveIndexEXT(shadowRayQuery, false) * 3;	 // primitiveIndex * 3
 					const vec2 barycentrics = rayQueryGetIntersectionBarycentricsEXT(shadowRayQuery, false);
 
-#if SPLIT_BLAS
-					const uint instanceID = rayQueryGetIntersectionInstanceIdEXT(shadowRayQuery, false);
-					GeometryInfo geom = geometries.geoms[nonuniformEXT(instanceID)];
-
-					Indices    indices = Indices(geom.indexBufferDeviceAddress);
-					Vertices   vertices = Vertices(geom.vertexBufferDeviceAddress);
-#else
 					const uint geometryID =  rayQueryGetIntersectionGeometryIndexEXT(shadowRayQuery, false);
 					GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(geometryID)];
 
 					Indices    indices = Indices(geometryNode.indexBufferDeviceAddress);
 					Vertices   vertices = Vertices(geometryNode.vertexBufferDeviceAddress);
-#endif
 		
 					vec2 vertices_uv[3];
 					vec2 uv;
 					vec4 vertices_color[3];
 					vec4 color;
-#if SPLIT_BLAS
-					uint objcetID;
-#endif
+
 					for (uint i = 0; i < 3; i++) {
 						const uint offset = indices.i[triIndex + i] * 7;
 						vec4 d1 = vertices.v[offset + 1]; 
@@ -231,24 +155,14 @@ void main()
 
 						vertices_uv[i] = d1.zw;
 						vertices_color[i] = d2;
-#if SPLIT_BLAS
-						vec4 d4 = vertices.v[offset + 6]; // objectID, padding
-						objcetID = floatBitsToUint(d4.x);
-#endif
 					}
 					uv = vertices_uv[0] * (1.0f - barycentrics.x - barycentrics.y) + vertices_uv[1] * barycentrics.x + vertices_uv[2] * barycentrics.y;
 					color = vertices_color[0] * (1.0f - barycentrics.x - barycentrics.y) + vertices_color[1] * barycentrics.x + vertices_color[2] * barycentrics.y;
 					
-#if SPLIT_BLAS
-					MaterialInfo mat = materials.mats[nonuniformEXT(objcetID)];
-					if (nonuniformEXT(mat.textureIndexBaseColor) > -1) {
-						color = texture(textures[nonuniformEXT(mat.textureIndexBaseColor)], uv);
-					}
-#else
 					if (nonuniformEXT(geometryNode.textureIndexBaseColor) > -1) {
 						color = texture(textures[nonuniformEXT(geometryNode.textureIndexBaseColor)], uv);
 					}
-#endif
+
 					if (color.a != 0.0f) {
 						rayQueryConfirmIntersectionEXT(shadowRayQuery);
 					}

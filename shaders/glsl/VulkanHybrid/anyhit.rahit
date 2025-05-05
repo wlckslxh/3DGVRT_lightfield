@@ -19,29 +19,15 @@
 hitAttributeEXT vec2 attribs;
 
 layout(binding = 10) uniform sampler2D textures[];
-
-#if SPLIT_BLAS
-layout(binding = 11, set = 0) buffer Geometries{ GeometryInfo geoms[]; } geometries;
-layout(binding = 12, set = 0) buffer Materials{ MaterialInfo mats[]; } materials;
-#else
 layout(binding = 11, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-#endif
 
 #include "../base/geometryfunctions.glsl"
 
 void main()
 {
-#if SPLIT_BLAS
-	GeometryInfo geom = geometries.geoms[nonuniformEXT(gl_InstanceID)];
-
-	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geom.vertexBufferDeviceAddress, geom.indexBufferDeviceAddress);// 4 * 4 * 7(vec4 * float * Vertex size)
-
-	MaterialInfo geometryNode = materials.mats[nonuniformEXT(tri.vertices[0].objectID)];
-#else
 	GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(gl_GeometryIndexEXT)];
 
 	Triangle tri = unpackTriangle(gl_PrimitiveID, 112, geometryNode.vertexBufferDeviceAddress, geometryNode.indexBufferDeviceAddress);
-#endif
 
 	vec4 color = texture(textures[nonuniformEXT(geometryNode.textureIndexBaseColor)], tri.uv);
 

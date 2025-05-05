@@ -27,10 +27,6 @@ Triangle unpackTriangle(uint index, int vertexSize, uint64_t vertexBufferDeviceA
 		tri.vertices[i].uv = d1.zw;
 		tri.vertices[i].color = d2;
 		tri.vertices[i].tangent = d3;
-#if SPLIT_BLAS
-		vec4 d4 = vertices.v[offset + 6]; // objectID, padding
-		tri.vertices[i].objectID = floatBitsToUint(d4.x);
-#endif
 
 		//tri.vertices[i].pos = vec3(transformMatrix * vec4(tri.vertices[i].pos, 1.0f));
 		//tri.vertices[i].normal = vec3(transformInverseTrans * vec4(tri.vertices[i].normal, 1.0f));

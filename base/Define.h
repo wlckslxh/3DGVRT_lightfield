@@ -17,18 +17,6 @@
 #define MEASURE_FRAME 2000
 #endif
 
-// -------------------------- split blas -------------------------- //
-#define SPLIT_BLAS 0		// This macro should be managed with define.glsl
-#define NUMBER_OF_CELLS_PER_LONGEST_AXIS 10
-#define SCENE_EPSILON 1e-4f
-#define ONE_VERTEX_BUFFER 1
-#define HYBRID 0
-
-#define ADAPTIVE_SPLIT 0
-#define MAX_VERTEX_CNT 10000
-#define ADAPTIVE_SPLIT_CNT 8	// x,y,z - half,half,half (don't edit)
-// ----------------------------------------------------------------- //
-
 #define STOP_LIGHT 0
 
 #define ASSET 0

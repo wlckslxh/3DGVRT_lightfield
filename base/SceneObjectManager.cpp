@@ -251,11 +251,6 @@ InstancingObject* SceneObjectManager::FindAndGet_InstancingObj(const std::string
 
 void SceneObjectManager::updateObjects(float deltaTime)
 {
-#ifdef DYNAMIC_SCENE
-	//if ((CURRENT_FLAG & MOVE_DYNAMIC_OBJECT) == FALSE)
-	//	return;
-#endif
-
 	for (auto& pair : dynamicObjects)
 	{
 		auto& pDynamicObject = pair.second;

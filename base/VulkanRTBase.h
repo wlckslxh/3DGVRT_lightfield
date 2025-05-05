@@ -299,11 +299,6 @@ public:
 	// for Vulkan timestamp queries
 	VkPhysicalDeviceLimits deviceLimits;
 
-#if DYNAMIC_SCENE
-	// for Dynamic Scene
-	SceneObjectManager sceneObjManager;
-#endif
-
 	// OS specific
 #if defined(_WIN32)
 	HWND window;

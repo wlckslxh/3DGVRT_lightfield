@@ -88,31 +88,6 @@ public:
 	VkPipelineStageFlags offscreenWaitStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 	VkPipelineStageFlags lightingWaitStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
-#if SPLIT_BLAS
-	VkTransformMatrixKHR tMat{};
-	vks::Buffer tMatBuffer;
-	std::vector<AccelerationStructure> splittedBLAS;
-
-	struct GeometryInfo {
-		uint64_t vertexBufferDeviceAddress;
-		uint64_t indexBufferDeviceAddress;
-	};
-	vks::Buffer geometriesBuffer;
-
-	struct MaterialInfo {
-		int32_t textureIndexBaseColor;
-		int32_t textureIndexOcclusion;
-		int32_t textureIndexNormal;
-		int32_t textureIndexMetallicRoughness;
-		int32_t textureIndexEmissive;
-		float reflectance;
-		float refractance;
-		float ior;
-		float metallicFactor;
-		float roughnessFactor;
-	};
-	vks::Buffer materialsBuffer;
-#else
 	AccelerationStructure bottomLevelAS{};
 
 	struct GeometryNode {
@@ -130,7 +105,6 @@ public:
 		float roughnessFactor;
 	};
 	vks::Buffer geometryNodesBuffer;
-#endif
 	AccelerationStructure topLevelAS{};
 	vks::Buffer transformBuffer;
 
@@ -215,17 +189,8 @@ public:
 			// offscreen uniform buffer
 			uniformBufferOffscreen.destroy();
 
-#if SPLIT_BLAS
-			for (int i = 0; i < splittedBLAS.size(); i++) {
-				deleteAccelerationStructure(splittedBLAS[i]);
-			}
-			tMatBuffer.destroy();
-			geometriesBuffer.destroy();
-			materialsBuffer.destroy();
-#else
 			deleteAccelerationStructure(bottomLevelAS);
 			geometryNodesBuffer.destroy();
-#endif
 			deleteAccelerationStructure(topLevelAS);
 			transformBuffer.destroy();
 
@@ -583,236 +548,6 @@ public:
 	/*
 	Create the bottom level acceleration structure that contains the scene's actual geometry (vertices, triangles)
 	*/
-#if SPLIT_BLAS
-	void createGeometryMaterialBuffer()
-	{
-		// geometry infos: vertices and indices device address per each cells
-		std::vector<GeometryInfo> geometries;
-		for (int cellIdx = 0; cellIdx < scene.splittedIndices.size(); ++cellIdx) {
-			GeometryInfo geometry{};
-#if ONE_VERTEX_BUFFER
-			geometry.vertexBufferDeviceAddress = getBufferDeviceAddress(scene.vertices.buffer);
-#else
-			geometry.vertexBufferDeviceAddress = getBufferDeviceAddress(scene.splittedVertices[cellIdx].buffer);
-#endif
-			geometry.indexBufferDeviceAddress = getBufferDeviceAddress(scene.splittedIndices[cellIdx].buffer);
-			geometries.push_back(geometry);
-		}
-#
-
-		// material infos: textures, shading informations
-		std::vector<MaterialInfo> materials;
-		for (auto node : scene.linearNodes) {
-			if (node->mesh) {
-				for (auto primitive : node->mesh->primitives) {
-					if (primitive->indexCount > 0) {
-						MaterialInfo material{};
-
-						material.textureIndexBaseColor = primitive->material.baseColorTexture ? primitive->material.baseColorTexture->index : -1;
-						material.textureIndexOcclusion = primitive->material.occlusionTexture ? primitive->material.occlusionTexture->index : -1;
-						material.textureIndexNormal = primitive->material.normalTexture ? primitive->material.normalTexture->index : -1;
-						material.textureIndexMetallicRoughness = primitive->material.metallicRoughnessTexture ? primitive->material.metallicRoughnessTexture->index : -1;
-						material.textureIndexEmissive = primitive->material.emissiveTexture ? primitive->material.emissiveTexture->index : -1;
-						material.reflectance = primitive->material.Kr;
-						material.refractance = primitive->material.Kt;
-						material.ior = primitive->material.ior;
-						material.metallicFactor = primitive->material.metallicFactor;
-						material.roughnessFactor = primitive->material.roughnessFactor;
-						// @todo: map material id to global texture array
-						materials.push_back(material);
-					}
-				}
-			}
-		}
-
-		// staging buffer: for geometries and materials buffer
-		VkBuffer geomStagingBuffer, matStagingBuffer;
-		VkDeviceMemory geomStagingMemory, matStagingMemory;
-
-		uint32_t geometrySize = static_cast<uint32_t> (geometries.size() * sizeof(GeometryInfo));
-		uint32_t materialSize = static_cast<uint32_t> (materials.size() * sizeof(MaterialInfo));
-
-		// geometries staging buffer
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			geometrySize,
-			&geomStagingBuffer,
-			&geomStagingMemory,
-			geometries.data()));
-
-		// materials staging buffers
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			materialSize,
-			&matStagingBuffer,
-			&matStagingMemory,
-			materials.data()));
-
-		// geometries buffer(device local)
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			&geometriesBuffer,
-			geometrySize,
-			(void*)nullptr));
-
-		// materials buffer(device local)
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			&materialsBuffer,
-			materialSize,
-			(void*)nullptr));
-
-		// copy cmd
-		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-
-		VkBufferCopy copyRegion = {};
-
-		// copy geometry staging buffer to geometry buffer
-		copyRegion.size = geometrySize;
-		vkCmdCopyBuffer(copyCmd, geomStagingBuffer, geometriesBuffer.buffer, 1, &copyRegion);
-
-		// copy material staging buffer to material buffer
-		copyRegion.size = materialSize;
-		vkCmdCopyBuffer(copyCmd, matStagingBuffer, materialsBuffer.buffer, 1, &copyRegion);
-
-		vulkanDevice->flushCommandBuffer(copyCmd, graphicsQueue, true);
-
-		vkDestroyBuffer(vulkanDevice->logicalDevice, geomStagingBuffer, nullptr);
-		vkFreeMemory(vulkanDevice->logicalDevice, geomStagingMemory, nullptr);
-		vkDestroyBuffer(vulkanDevice->logicalDevice, matStagingBuffer, nullptr);
-		vkFreeMemory(vulkanDevice->logicalDevice, matStagingMemory, nullptr);
-	}
-
-	void createBottomLevelAccelerationStructure(int cellIdx) {
-		// Build
-		// One geometry per glTF node, so we can index materials using gl_GeometryIndexEXT
-		std::vector<uint32_t> maxPrimitiveCounts;
-		std::vector<VkAccelerationStructureGeometryKHR> geometries;
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR> buildRangeInfos;
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR*> pBuildRangeInfos;
-
-		VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
-		VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
-		VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
-
-#if ONE_VERTEX_BUFFER
-		vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(scene.vertices.buffer);
-#else
-		vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(scene.splittedVertices[cellIdx].buffer);
-#endif
-		indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(scene.splittedIndices[cellIdx].buffer);
-		transformBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(tMatBuffer.buffer);
-
-		VkAccelerationStructureGeometryKHR geometry{};
-		geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-		geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-		geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-		geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-		geometry.geometry.triangles.vertexData = vertexBufferDeviceAddress;
-#if ONE_VERTEX_BUFFER
-		geometry.geometry.triangles.maxVertex = scene.vertices.count - 1;
-#else
-		geometry.geometry.triangles.maxVertex = scene.splittedVertices[cellIdx].count - 1;
-#endif
-		geometry.geometry.triangles.vertexStride = sizeof(vkglTF::Vertex);
-		geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-		geometry.geometry.triangles.indexData = indexBufferDeviceAddress;
-		geometry.geometry.triangles.transformData = transformBufferDeviceAddress;
-		geometries.push_back(geometry);
-		maxPrimitiveCounts.push_back(scene.splittedIndices[cellIdx].count / 3);
-
-		VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
-		buildRangeInfo.firstVertex = 0;
-		buildRangeInfo.primitiveOffset = 0;
-		buildRangeInfo.primitiveCount = scene.splittedIndices[cellIdx].count / 3;
-		buildRangeInfo.transformOffset = 0;
-		buildRangeInfos.push_back(buildRangeInfo);
-
-		for (auto& rangeInfo : buildRangeInfos)
-		{
-			pBuildRangeInfos.push_back(&rangeInfo);
-		}
-
-		// Get size info
-		VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
-		accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-		accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-		accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-		accelerationStructureBuildGeometryInfo.geometryCount = static_cast<uint32_t>(geometries.size());
-		accelerationStructureBuildGeometryInfo.pGeometries = geometries.data();
-
-		VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
-		accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-		vkGetAccelerationStructureBuildSizesKHR(
-			device,
-			VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-			&accelerationStructureBuildGeometryInfo,
-			maxPrimitiveCounts.data(),
-			&accelerationStructureBuildSizesInfo);
-
-		createAccelerationStructureBuffer(splittedBLAS[cellIdx], accelerationStructureBuildSizesInfo);
-
-		VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
-		accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-		accelerationStructureCreateInfo.buffer = splittedBLAS[cellIdx].buffer;
-		accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-		accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-		vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &splittedBLAS[cellIdx].handle);
-
-		// Create a small scratch buffer used during build of the bottom level acceleration structure
-		ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
-
-		accelerationStructureBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-		accelerationStructureBuildGeometryInfo.dstAccelerationStructure = splittedBLAS[cellIdx].handle;
-		accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
-
-		// Build the acceleration structure on the device via a one-time command buffer submission
-		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
-		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-		vkCmdBuildAccelerationStructuresKHR(
-			commandBuffer,
-			1,
-			&accelerationStructureBuildGeometryInfo,
-			pBuildRangeInfos.data());
-		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
-
-		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
-		accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-		accelerationDeviceAddressInfo.accelerationStructure = splittedBLAS[cellIdx].handle;
-		splittedBLAS[cellIdx].deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &accelerationDeviceAddressInfo);
-
-		deleteScratchBuffer(scratchBuffer);
-	}
-
-	void createBottomLevelAccelerationStructures() {
-		auto m = glm::mat3x4(glm::mat4(1.0f));
-		memcpy(&tMat, (void*)&m, sizeof(glm::mat3x4));
-		std::vector<VkTransformMatrixKHR> tMatVec;
-		tMatVec.push_back(tMat);
-
-		// Transform buffer
-		//TODO: remove vector
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&tMatBuffer,
-			static_cast<uint32_t>(tMatVec.size()) * sizeof(VkTransformMatrixKHR),
-			tMatVec.data()));
-
-		createGeometryMaterialBuffer();
-
-		splittedBLAS.resize(scene.splittedIndices.size());
-
-		for (int cellIdx = 0; cellIdx < scene.splittedIndices.size(); ++cellIdx) {
-			createBottomLevelAccelerationStructure(cellIdx);
-		}
-	}
-#else
-
 	void createBottomLevelAccelerationStructure()
 	{
 		// Use transform matrices from the glTF nodes
@@ -966,7 +701,6 @@ public:
 
 		deleteScratchBuffer(scratchBuffer);
 	}
-#endif
 
 	/*
 		The top level acceleration structure contains the scene's object instances
@@ -979,18 +713,6 @@ public:
 			0.0f, 0.0f, 1.0f, 0.0f };
 
 		std::vector<VkAccelerationStructureInstanceKHR> instances;
-#if SPLIT_BLAS
-		for (int i = 0; i < scene.splittedIndices.size(); i++) {
-			VkAccelerationStructureInstanceKHR instance{};
-			instance.transform = transformMatrix;
-			instance.instanceCustomIndex = instances.size();
-			instance.mask = 0xFF;
-			instance.instanceShaderBindingTableRecordOffset = 0;
-			instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-			instance.accelerationStructureReference = splittedBLAS[i].deviceAddress;
-			instances.push_back(instance);
-		}
-#else
 		VkAccelerationStructureInstanceKHR instance{};
 		instance.transform = transformMatrix;
 		instance.instanceCustomIndex = 0;
@@ -999,7 +721,6 @@ public:
 		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
 		instance.accelerationStructureReference = bottomLevelAS.deviceAddress;
 		instances.push_back(instance);
-#endif
 
 		// Buffer for instance data
 		vks::Buffer instancesBuffer;
@@ -1350,11 +1071,7 @@ public:
 			// [Pass 1]
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount),
-#if SPLIT_BLAS
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * swapChain.imageCount),
-#else
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount),
-#endif
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 * swapChain.imageCount),
@@ -1434,15 +1151,8 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 9),
 			// Binding 10: All images used by the glTF model
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 10, static_cast<uint32_t>(scene.textures.size())),
-#if SPLIT_BLAS
-			// Binding 11: Geometries information SSBO(Shader Storage Buffer Object)
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 11),
-			// Binding 12: Materials information SSBO(Shader Storage Buffer Object)
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 12),
-#else
 			// Binding 11: Geometry node information SSBO(Shader Storage Buffer Object)
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 11),
-#endif		
 		};
 		descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 
@@ -1583,15 +1293,8 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSetComposition, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 9, &frame.uniformBufferStaticLight.descriptor),
 				// Binding 10: All images used by the glTF model
 				writeDescriptorImgArray,
-#if SPLIT_BLAS
-				// Binding 11: Geometries information SSBO
-				vks::initializers::writeDescriptorSet(descriptorSetComposition, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 11, &geometriesBuffer.descriptor),
-				// Binding 12: Materials information SSBO
-				vks::initializers::writeDescriptorSet(descriptorSetComposition, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 12, &materialsBuffer.descriptor),
-#else
 				// Binding 11: Instance information SSBO
 				vks::initializers::writeDescriptorSet(descriptorSetComposition, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 11, &geometryNodesBuffer.descriptor),
-#endif
 			};
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
@@ -1877,11 +1580,7 @@ public:
 		createOffscreenFramebuffer();
 
 		// Create the acceleration structures used to render the ray traced scene
-#if SPLIT_BLAS
-		createBottomLevelAccelerationStructures();
-#else
 		createBottomLevelAccelerationStructure();
-#endif
 		createTopLevelAccelerationStructure();
 
 		createDescriptorSets();

@@ -49,11 +49,7 @@ layout(binding = 6) uniform sampler2D samplerMetallicRoughness;
 layout(binding = 7) uniform sampler2D samplerEmissive;
 layout(binding = 8) uniform samplerCube samplerEnvMap;
 layout(binding = 10) uniform sampler2D textures[];
-#if SPLIT_BLAS
-layout(binding = 12, set = 0) buffer Materials{ MaterialInfo mats[]; } materials;
-#else
 layout(binding = 11, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-#endif
 
 void main() 
 {
@@ -82,11 +78,7 @@ void main()
 
 	vec3 V = normalize((ubo.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xyz - pos);
 
-#if SPLIT_BLAS
-	MaterialInfo geometryNode = materials.mats[nonuniformEXT(objectID)];
-#else
 	GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(objectID)];
-#endif
 
     if(((pushConstants.rayOption.reflection) && (geometryNode.reflectance > 0.0f)) || ((pushConstants.rayOption.refraction) && (geometryNode.refractance > 0.0f))){
 		albedo.rgb = vec3(0.0f);
@@ -188,11 +180,7 @@ void main()
 		{
 			break;
 		}
-#if SPLIT_BLAS
-		geometryNode = materials.mats[nonuniformEXT(rayPayload.objectID)];
-#else
 		geometryNode = geometryNodes.nodes[nonuniformEXT(rayPayload.objectID)];
-#endif
 		pos = pos + V * rayPayload.dist;
 		N = rayPayload.normal;
 	}
