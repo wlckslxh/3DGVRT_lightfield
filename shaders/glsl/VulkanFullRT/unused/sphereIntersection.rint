@@ -1,0 +1,52 @@
+/* Copyright (c) 2023, Sascha Willems
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Sogang Univ, Graphics Lab
+ */
+
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_buffer_reference2 : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+#include "geometrytypes.glsl"
+#include "bufferreferences.glsl"
+
+hitAttributeEXT vec2 attribs;
+
+layout(binding = 4, set = 0) buffer InstanceInfos { InstanceInfo infos[]; } instanceInfos;
+
+#include "geometryfunctions.glsl"
+
+// Ray-sphere intersection
+// By Inigo Quilez, from https://iquilezles.org/articles/spherefunctions/
+float sphIntersect(const Sphere s, vec3 ro, vec3 rd)
+{
+    vec3 oc = ro - s.center;
+    float b = dot(oc, rd);
+    float c = dot(oc, oc) - s.radius * s.radius;
+    float h = b * b - c;
+    if (h < 0.0) { 
+        return -1.0;
+    }
+    h = sqrt(h);
+    if (-b - h > 0)
+        return -b - h;
+    else if (-b + h > 0)
+        return -b + h;
+    else
+        return -1;
+}
+
+void main() {
+	Sphere sphere = unpackSphere(gl_InstanceID);
+    float hit = sphIntersect(sphere, gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT);
+
+    if (hit > 0) {
+        reportIntersectionEXT(hit, 0);
+    }
+}

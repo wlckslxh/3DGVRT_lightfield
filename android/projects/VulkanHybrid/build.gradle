@@ -1,0 +1,100 @@
+apply plugin: 'com.android.application'
+apply from: '../gradle/outputfilename.gradle'
+
+android {
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "sogang.graphics.vulkanhybrid"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        ndk {
+            abiFilters rootProject.ext.abiFilters
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++2a"
+                arguments "-DANDROID_STL=c++_shared", '-DANDROID_TOOLCHAIN=clang'
+            }
+        }
+    }
+    sourceSets {
+        main.assets.srcDirs = ['assets']
+    }
+    signingConfigs {
+        release {
+            keyAlias "key0"
+            keyPassword "241004"
+            storeFile file("C:\\AndroidKeys\\releaseKey.jks")
+            storePassword "241004"
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+        }
+    }
+}
+
+task copyTask {
+    copy {
+        from '../../common/res/drawable'
+        into "src/main/res/drawable"
+        include 'icon.png'
+    }
+
+    copy {
+        from rootProject.ext.shaderPath + 'glsl/base'
+        into 'assets/shaders/glsl/base'
+        include '*.spv'
+    }
+
+    copy {
+       from rootProject.ext.shaderPath + 'glsl/VulkanHybrid'
+       into 'assets/shaders/glsl/VulkanHybrid'
+       include '*.*'
+    }
+
+    copy {
+//        from rootProject.ext.assetPath + 'models/cornellBox'
+//        into 'assets/models/cornellBox'
+//
+//        from rootProject.ext.assetPath + 'models/suntemple_simple'
+//        into 'assets/models/suntemple_simple'
+//
+//        from rootProject.ext.assetPath + 'models/suntemple_etc1s'
+//        into 'assets/models/suntemple_etc1s'
+//
+        from rootProject.ext.assetPath + 'models/sponza_multi_blas_transparent'
+        into 'assets/models/sponza_multi_blas_transparent'
+//
+//        from rootProject.ext.assetPath + 'models/sponza_etc1s'
+//        into 'assets/models/sponza_etc1s'
+//
+//       from rootProject.ext.assetPath + 'models/bistroexterior_etc1s'
+//       into 'assets/models/bistroexterior_etc1s'
+        include '*.*'
+    }
+
+    //  copy {
+    //     from rootProject.ext.assetPath + 'models/bistroexterior_etc1s'
+    //     into 'assets/models/bistroexterior_etc1s'
+    //     include '*.*'
+    // }
+
+    copy {
+        from rootProject.ext.assetPath + 'cubeMapTextures'
+        into 'assets/cubeMapTextures'
+        include '*.*'
+    }
+}
+
+preBuild.dependsOn copyTask
