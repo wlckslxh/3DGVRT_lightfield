@@ -1,7 +1,9 @@
 ﻿/*
  * Sogang Univ, Graphics Lab, 2024
  *
- * Vulkan Hybrid
+ * Abura Soba, 2025
+ * 
+ * Hybrid (Rasterization + Ray Tracing)
  *
  */
 
@@ -144,7 +146,7 @@ public:
 
 	VulkanHybrid() : VulkanRTCommon()
 	{
-		title = "Sogang Univ - Vulkan Hybrid";
+		title = "Abura Soba - Vulkan Hybrid";
 		initCamera();
 	}
 

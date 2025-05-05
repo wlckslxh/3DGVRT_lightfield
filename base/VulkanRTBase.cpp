@@ -1196,7 +1196,7 @@ VulkanRTBase::VulkanRTBase()
 	commandLineParser.parse(args);
 	if (commandLineParser.isSet("help")) {
 #if defined(_WIN32)
-		setupConsole("Sogang Univ - Vulkan RT Console - Help");
+		setupConsole("Abura Soba - Console - Help");
 #endif
 		commandLineParser.printHelp();
 		std::cin.get();
@@ -1261,12 +1261,12 @@ VulkanRTBase::VulkanRTBase()
 	// Enable console if validation is active, debug message callback will output to it
 	if (this->settings.validation)
 	{
-		setupConsole("Sogang Univ - Vulkan RT Console - Validation");
+		setupConsole("Abura Soba - Console - Validation");
 	}
 	setupDPIAwareness();
 
 	// Main Console
-	setupConsole("Sogang Univ - Vulkan RT Console");
+	setupConsole("Abura Soba - Console");
 #endif
 }
 

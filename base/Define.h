@@ -11,7 +11,7 @@
 #endif
 
 // -------------------------- split blas -------------------------- //
-#define SPLIT_BLAS 1		// This macro should be managed with define.glsl
+#define SPLIT_BLAS 0		// This macro should be managed with define.glsl
 #define NUMBER_OF_CELLS_PER_LONGEST_AXIS 10
 #define SCENE_EPSILON 1e-4f
 #define ONE_VERTEX_BUFFER 1

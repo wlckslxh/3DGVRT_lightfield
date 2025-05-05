@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
-set(NAME SamsungVulkanRT2024)
+set(NAME 3DGVRT)
 
 project(${NAME})
 

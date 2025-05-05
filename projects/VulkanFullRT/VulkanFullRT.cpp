@@ -1,7 +1,9 @@
 ﻿/*
  * Sogang Univ, Graphics Lab, 2024
  * 
- * Vulkan Full Raytracing, One Blas Version.
+ * Abura Soba, 2025
+ * 
+ * Full Ray Tracing
  * 
  */
 
@@ -62,37 +64,6 @@ public:
 	uint32_t indexCount{ 0 };
 	vks::Buffer transformBuffer;
 
-#if DYNAMIC_SCENE
-	// BLAS with Descriptions for Build
-	struct BLAS_DESC
-	{
-		AccelerationStructure bottomLevelAS;
-		VkDeviceSize blasSize;
-		std::vector<VkAccelerationStructureGeometryKHR> blasGeometries;
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR> blasBuildRangeInfos;
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR*> pBlasBuildRangeInfos;
-		std::vector<uint32_t> maxPrimitiveCounts;
-		std::vector<GeometryNode> geometryNodes;
-		VkAccelerationStructureBuildSizesInfoKHR blasAccelerationStructureBuildSizesInfo{};
-		ScratchBuffer blasScratchBuffer{};
-		glm::mat4* pTransformMatrix;
-		bool isDynamicBLAS = false;
-		bool isInstancing = false;
-		bool isDeformable = false;
-		std::string nodeName;
-	};
-	std::vector<BLAS_DESC*> blasDescInstances;
-
-	std::vector<GeometryNode> geometryNodes;
-
-	// TLAS
-	std::vector<VkAccelerationStructureInstanceKHR> asInstances{}; // BLASes
-	vks::Buffer tlasBuffer;
-	VkDeviceSize tlasScratchSize;
-	ScratchBuffer tlasScratchBuffer{};
-	bool isFirstRender = true;
-#endif
-
 	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
 	struct ShaderBindingTables {
 		ShaderBindingTable raygen;
@@ -112,9 +83,6 @@ public:
 		uint32_t numOfDynamicLights = NUM_OF_DYNAMIC_LIGHTS;
 		uint32_t numOfStaticLights = NUM_OF_STATIC_LIGHTS;
 		uint32_t staticLightOffset = STATIC_LIGHT_OFFSET;
-#if DYNAMIC_SCENE
-		uint32_t numGeometryNodesForStatic = 0;
-#endif
 	} specializationData;
 
 	VkPipeline pipeline{ VK_NULL_HANDLE };
@@ -142,10 +110,7 @@ public:
 
 	VulkanFullRT() : VulkanRTCommon()
 	{
-#if DYNAMIC_SCENE
-		asInstances.resize(BLAS_MAX_COUNT);
-#endif
-		title = "Sogang Univ - Vulkan Full Ray Tracing";
+		title = "Abura Soba - Vulkan Full Ray Tracing";
 		initCamera();
 	}
 
@@ -174,25 +139,7 @@ public:
 			materialsBuffer.destroy();
 #else // !SPLIT_BLAS
 			geometryNodesBuffer.destroy();
-#if DYNAMIC_SCENE
-			tlasBuffer.destroy();
-
-			for (auto& blasDescInstance : blasDescInstances)
-			{
-				blasDescInstance->pBlasBuildRangeInfos.clear();
-				blasDescInstance->blasBuildRangeInfos.clear();
-				blasDescInstance->maxPrimitiveCounts.clear();
-				deleteScratchBuffer(blasDescInstance->blasScratchBuffer);
-				deleteAccelerationStructure(blasDescInstance->bottomLevelAS);
-				delete blasDescInstance;
-				blasDescInstance = nullptr;
-			}
-			blasDescInstances.clear();
-
-			deleteScratchBuffer(tlasScratchBuffer);
-#else // !SPLIT_BLAS && !DYNAMIC_SCENE
 			deleteAccelerationStructure(bottomLevelAS);
-#endif
 #endif
 			deleteAccelerationStructure(topLevelAS);
 			transformBuffer.destroy();
@@ -242,465 +189,6 @@ public:
 		VK_CHECK_RESULT(vkBindBufferMemory(device, accelerationStructure.buffer, accelerationStructure.memory, 0));
 	}
 
-#if DYNAMIC_SCENE
-	/*
-		Create the bottom level acceleration structure that contains the scene's actual geometry (vertices, triangles)
-	*/
-	void createBottomLevelAccelerationStructure()
-	{
-		bool isFirstBuild = blasDescInstances.empty();
-
-		// Use transform matrices from the glTF nodes
-		std::vector<VkTransformMatrixKHR> transformMatrices{};
-		std::vector<VkTransformMatrixKHR> singleMeshBLASMats;
-		uint32_t dynamicTransformStartOffset = 0; // TransformBuffer: |Static|S|S|S|S|S|S|S|S|<-Here,D|Dynamic|
-		for (auto node : scene.linearNodes) {
-			if (node->mesh) {
-				bool isStatic = node->isStatic;
-				for (auto primitive : node->mesh->primitives) {
-					if (primitive->indexCount > 0) {
-						VkTransformMatrixKHR transformMatrix = SimpleUtils::IdentityVkTransformMatrix;
-						if (isStatic)
-							transformMatrices.push_back(transformMatrix);
-						else
-							singleMeshBLASMats.push_back(transformMatrix);
-					}
-				}
-			}
-		}
-		dynamicTransformStartOffset = transformMatrices.size();
-		transformMatrices.insert(transformMatrices.end(), singleMeshBLASMats.begin(), singleMeshBLASMats.end());
-
-		// Instance if First Build, Reference if Update
-		BLAS_DESC* pSceneBlasDesc = nullptr; // Big Blas covering whole Scene
-		BLAS_DESC* pHandlingBlasDesc = nullptr;
-		if (isFirstBuild)
-		{
-			// Transform buffer
-			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(
-				VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				&transformBuffer,
-				static_cast<uint32_t>(transformMatrices.size()) * sizeof(VkTransformMatrixKHR),
-				transformMatrices.data()));
-
-			// Build
-			pSceneBlasDesc = new BLAS_DESC{}; // as Instance
-			blasDescInstances.push_back(pSceneBlasDesc);
-			pHandlingBlasDesc = pSceneBlasDesc;
-			pHandlingBlasDesc->pTransformMatrix = &scene.linearNodes[0]->matrix;
-
-			uint32_t transformBufferStaticOffset = 0;
-			for (auto node : scene.linearNodes) {
-				if (node->mesh) {
-					bool isStaticMesh = node->isStatic;
-					if (isStaticMesh)
-					{
-						pHandlingBlasDesc = pSceneBlasDesc;
-					}
-					else // If Dynamic Mesh
-					{
-						// Make Dynamic Geometry as BLAS
-						pHandlingBlasDesc = new BLAS_DESC{};
-						pHandlingBlasDesc->nodeName = node->name;
-						blasDescInstances.push_back(pHandlingBlasDesc); // as Instance
-						pHandlingBlasDesc->pTransformMatrix = &node->mesh->uniformBlock.matrix;
-					}
-					for (auto primitive : node->mesh->primitives) {
-						if (primitive->indexCount > 0) {
-							VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
-							VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
-							VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
-
-							vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(scene.vertices.buffer);// +primitive->firstVertex * sizeof(vkglTF::Vertex);
-							indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(scene.indices.buffer) + primitive->firstIndex * sizeof(uint32_t);
-							if (isStaticMesh)
-								transformBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(transformBuffer.buffer) + transformBufferStaticOffset++ * sizeof(VkTransformMatrixKHR);
-							else // dynamicMesh
-								transformBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(transformBuffer.buffer) + dynamicTransformStartOffset++ * sizeof(VkTransformMatrixKHR);
-							VkAccelerationStructureGeometryKHR geometry{};
-							geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-							geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-							geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-							geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-							geometry.geometry.triangles.vertexData = vertexBufferDeviceAddress;
-							geometry.geometry.triangles.maxVertex = scene.vertices.count;
-							geometry.geometry.triangles.vertexStride = sizeof(vkglTF::Vertex);
-							geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-							geometry.geometry.triangles.indexData = indexBufferDeviceAddress;
-							geometry.geometry.triangles.transformData = transformBufferDeviceAddress;
-
-							VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
-							buildRangeInfo.firstVertex = 0;
-							buildRangeInfo.primitiveOffset = 0; // primitive->firstIndex * sizeof(uint32_t);
-							buildRangeInfo.primitiveCount = primitive->indexCount / 3;
-							buildRangeInfo.transformOffset = 0;
-
-							GeometryNode geometryNode{};
-							geometryNode.vertexBufferDeviceAddress = vertexBufferDeviceAddress.deviceAddress;
-							geometryNode.indexBufferDeviceAddress = indexBufferDeviceAddress.deviceAddress;
-							geometryNode.textureIndexBaseColor = primitive->material.baseColorTexture ? primitive->material.baseColorTexture->index : -1;
-							geometryNode.textureIndexOcclusion = primitive->material.occlusionTexture ? primitive->material.occlusionTexture->index : -1;
-							geometryNode.textureIndexNormal = primitive->material.normalTexture ? primitive->material.normalTexture->index : -1;
-							geometryNode.textureIndexMetallicRoughness = primitive->material.metallicRoughnessTexture ? primitive->material.metallicRoughnessTexture->index : -1;
-							geometryNode.textureIndexEmissive = primitive->material.emissiveTexture ? primitive->material.emissiveTexture->index : -1;
-							geometryNode.reflectance = primitive->material.Kr;
-							geometryNode.refractance = primitive->material.Kt;
-							geometryNode.ior = primitive->material.ior;
-							geometryNode.metallicFactor = primitive->material.metallicFactor;
-							geometryNode.roughnessFactor = primitive->material.roughnessFactor;
-
-							// If Static -> Push to SceneBLAS, Else -> Push to Small BLAS
-							// pHandlingBlasDesc is Referencing SceneBLAS (if Static)
-							// or Referencing new Allocated Instance(for Dynamic BLAS, if Dynamic Mesh)
-							pHandlingBlasDesc->blasGeometries.push_back(geometry);
-							pHandlingBlasDesc->blasBuildRangeInfos.push_back(buildRangeInfo);
-							pHandlingBlasDesc->maxPrimitiveCounts.push_back(primitive->indexCount / 3);
-
-							// @todo: map material id to global texture array
-							pHandlingBlasDesc->geometryNodes.push_back(geometryNode);
-
-							if (isStaticMesh == false)
-							{
-								pHandlingBlasDesc->isDynamicBLAS = true;
-								pHandlingBlasDesc->blasBuildRangeInfos.shrink_to_fit();
-								for (auto& rangeInfo : pHandlingBlasDesc->blasBuildRangeInfos)
-								{
-									pHandlingBlasDesc->pBlasBuildRangeInfos.push_back(&rangeInfo);
-								}
-								// Writing Dynamic BLAS Complete, change Handle
-								pHandlingBlasDesc = pSceneBlasDesc;
-							}
-						}
-					}
-				}
-			}
-
-			pHandlingBlasDesc->blasBuildRangeInfos.shrink_to_fit();
-			for (auto& rangeInfo : pHandlingBlasDesc->blasBuildRangeInfos)
-			{
-				pHandlingBlasDesc->pBlasBuildRangeInfos.push_back(&rangeInfo);
-			}
-			// Making BLAS DESC Complete
-
-			 //Move GeometryNode
-			for (auto& blasDescInstance : blasDescInstances)
-			{
-				if (blasDescInstance->isDynamicBLAS == false)
-					specializationData.numGeometryNodesForStatic += blasDescInstance->geometryNodes.size();
-
-				auto moveIteratorBegin = std::make_move_iterator(blasDescInstance->geometryNodes.begin());
-				auto moveIteratorEnd = std::make_move_iterator(blasDescInstance->geometryNodes.end());
-				geometryNodes.insert(geometryNodes.end(), moveIteratorBegin, moveIteratorEnd);
-				blasDescInstance->geometryNodes.clear();
-			}
-
-
-			// @todo: stage to device
-
-			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(
-				VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				&geometryNodesBuffer,
-				static_cast<uint32_t> (geometryNodes.size() * sizeof(GeometryNode)),
-				geometryNodes.data()));
-
-		}
-		else // !isFirstBuild
-		{
-			// Update All Node's Transform Buffer
-			memcpy(
-				(unsigned char*)transformBuffer.mapped, // dst
-				transformMatrices.data(),
-				static_cast<uint32_t>(transformMatrices.size()) * sizeof(VkTransformMatrixKHR)
-			);
-		}
-
-		for (auto& refHandlingBlasDesc : blasDescInstances)
-		{
-
-			VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
-			accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-			accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-			accelerationStructureBuildGeometryInfo.flags =
-				refHandlingBlasDesc->isDeformable ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR
-				: VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-			accelerationStructureBuildGeometryInfo.geometryCount = static_cast<uint32_t>(refHandlingBlasDesc->blasGeometries.size());
-			accelerationStructureBuildGeometryInfo.pGeometries = refHandlingBlasDesc->blasGeometries.data();
-
-
-			// First Build or Always Fast Trace
-			if (isFirstBuild)
-			{
-				accelerationStructureBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-			}
-			else
-			{
-				accelerationStructureBuildGeometryInfo.mode = refHandlingBlasDesc->isDeformable ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-				accelerationStructureBuildGeometryInfo.srcAccelerationStructure = refHandlingBlasDesc->bottomLevelAS.handle;
-			}
-
-			// Scratch Buffer, with Build Size
-			VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
-			accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-			vkGetAccelerationStructureBuildSizesKHR(
-				device,
-				VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-				&accelerationStructureBuildGeometryInfo,
-				refHandlingBlasDesc->maxPrimitiveCounts.data(),
-				&accelerationStructureBuildSizesInfo);
-
-			VkDeviceSize scratchBufferBuildSize = std::max(accelerationStructureBuildSizesInfo.buildScratchSize, accelerationStructureBuildSizesInfo.updateScratchSize);
-
-			if (isFirstBuild)
-			{
-				refHandlingBlasDesc->blasAccelerationStructureBuildSizesInfo = accelerationStructureBuildSizesInfo;
-				refHandlingBlasDesc->blasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-
-				createAccelerationStructureBuffer(refHandlingBlasDesc->bottomLevelAS, accelerationStructureBuildSizesInfo);
-
-				VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
-				accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-				accelerationStructureCreateInfo.buffer = refHandlingBlasDesc->bottomLevelAS.buffer;
-				accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-				accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-				vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &refHandlingBlasDesc->bottomLevelAS.handle);
-
-				// Create a small scratch buffer used during build of the bottom level acceleration structure
-				refHandlingBlasDesc->blasScratchBuffer = createScratchBuffer(scratchBufferBuildSize);
-			}
-			else // !isFirstBuild
-			{
-				if (refHandlingBlasDesc->blasAccelerationStructureBuildSizesInfo.buildScratchSize < accelerationStructureBuildSizesInfo.buildScratchSize)
-				{
-					// May not go here, because buildScratchSize and updateScratchSize would be same
-					deleteScratchBuffer(refHandlingBlasDesc->blasScratchBuffer);
-					refHandlingBlasDesc->blasScratchBuffer = createScratchBuffer(refHandlingBlasDesc->blasAccelerationStructureBuildSizesInfo.updateScratchSize);
-				}
-			}
-			accelerationStructureBuildGeometryInfo.dstAccelerationStructure = refHandlingBlasDesc->bottomLevelAS.handle;
-			accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = refHandlingBlasDesc->blasScratchBuffer.deviceAddress;
-
-
-			// Only build if First build. Updaing Blas is only for Deformable Object, because rigid body objects' blases are updated in TLAS with transform matrix
-			if (isFirstBuild || (accelerationStructureBuildGeometryInfo.mode == VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR))
-			{
-				// Build the acceleration structure on the device via a one-time command buffer submission
-				// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
-				VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-				vkCmdBuildAccelerationStructuresKHR(
-					commandBuffer,
-					1,
-					&accelerationStructureBuildGeometryInfo,
-					refHandlingBlasDesc->pBlasBuildRangeInfos.data());
-				vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
-
-				VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
-				accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-				accelerationDeviceAddressInfo.accelerationStructure = refHandlingBlasDesc->bottomLevelAS.handle;
-				refHandlingBlasDesc->bottomLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &accelerationDeviceAddressInfo);
-
-				if (isFirstBuild)
-				{
-					InstancingObject* pInstancingObj = sceneObjManager.FindAndGet_InstancingObj(refHandlingBlasDesc->nodeName);
-					if (pInstancingObj)
-					{
-						refHandlingBlasDesc->isInstancing = true;
-						pInstancingObj->blasDeviceAddress = refHandlingBlasDesc->bottomLevelAS.deviceAddress;
-					}
-				}
-			}
-		}
-	}
-
-	/*
-		The top level acceleration structure contains the scene's object instances
-	*/
-	void createTopLevelAccelerationStructure()
-	{
-		bool isFirstBuild = (topLevelAS.handle == nullptr);
-		if (isFirstBuild)
-		{
-			VkAccelerationStructureInstanceKHR asInstance{};
-			uint32_t blasIndex = 0;
-			// Create Default
-			for (blasIndex = 0; blasIndex < blasDescInstances.size(); ++blasIndex)
-			{
-				asInstance.transform = SimpleUtils::glmToVkMatrix(*blasDescInstances[blasIndex]->pTransformMatrix);
-				asInstance.instanceCustomIndex = blasIndex;
-				asInstance.mask = blasDescInstances[blasIndex]->isInstancing ? 0 : 0xFF;
-				asInstance.instanceShaderBindingTableRecordOffset = 0; // We will use the same hit group for all objects
-				asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-				asInstance.accelerationStructureReference = blasDescInstances[blasIndex]->bottomLevelAS.deviceAddress;
-				asInstances[blasIndex] = asInstance; // copy
-
-				if (blasDescInstances[blasIndex]->isInstancing)
-				{
-					SceneObject* pSceneObj = sceneObjManager.FindAndGet_SceneObj(blasDescInstances[blasIndex]->nodeName);
-					if (pSceneObj)
-					{
-						dynamic_cast<InstancingObject*>(pSceneObj)->blasCustomIndex = blasIndex;
-					}
-				}
-			}
-			// blas Instancing
-			for (auto& pair : sceneObjManager.instancingObjects)
-			{
-				auto& pInstancingObj = pair.second;
-				for (uint32_t i = 0; i < pInstancingObj->numInstancing; ++i)
-				{
-					asInstance.transform = SimpleUtils::glmToVkMatrix(pInstancingObj->instancingTransforms[i]);
-					asInstance.instanceCustomIndex = pInstancingObj->blasCustomIndex;
-					asInstance.mask = 0xFF;
-					asInstance.instanceShaderBindingTableRecordOffset = 0;
-					asInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-					asInstance.accelerationStructureReference = pInstancingObj->blasDeviceAddress;
-					asInstances[blasIndex++] = asInstance; // copy
-				}
-			}
-			for (; blasIndex < BLAS_MAX_COUNT; ++blasIndex)
-			{
-				asInstance.transform = SimpleUtils::IdentityVkTransformMatrix;
-				asInstance.mask = 0;
-				asInstances[blasIndex] = asInstance; // copy
-			}
-
-
-			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(
-				VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				&tlasBuffer,
-				sizeof(VkAccelerationStructureInstanceKHR) * BLAS_MAX_COUNT,
-				asInstances.data()));
-		}
-		else // !FirstBuild
-		{
-			uint32_t blasIndex = 0;
-
-			// update not instancing transforms
-			for (; blasIndex < blasDescInstances.size(); ++blasIndex)
-			{
-				asInstances[blasIndex].mask = blasDescInstances[blasIndex]->isInstancing ? 0 : 0xFF;
-				asInstances[blasIndex].transform = SimpleUtils::glmToVkMatrix(*blasDescInstances[blasIndex]->pTransformMatrix);
-			}
-
-			// instancing
-			for (auto& pair : sceneObjManager.instancingObjects)
-			{
-				auto& pInstancingObj = pair.second;
-
-				// update instanced
-				for (uint32_t i = 0; i < pInstancingObj->numInstancing; ++i)
-				{
-					asInstances[blasIndex].accelerationStructureReference = pInstancingObj->blasDeviceAddress;
-					asInstances[blasIndex].mask = 0xFF; // activate
-					asInstances[blasIndex].transform = SimpleUtils::glmToVkMatrix(pInstancingObj->instancingTransforms[i]);
-					++blasIndex;
-				}
-				pInstancingObj->prevNumInstancing = pInstancingObj->numInstancing;
-			}
-			// disable others
-			for (; blasIndex < BLAS_MAX_COUNT; ++blasIndex)
-			{
-				asInstances[blasIndex].mask = 0;
-			}
-
-
-			memcpy(tlasBuffer.mapped, asInstances.data(), sizeof(VkAccelerationStructureInstanceKHR) * BLAS_MAX_COUNT);
-		}
-
-		VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
-		instanceDataDeviceAddress.deviceAddress = getBufferDeviceAddress(tlasBuffer.buffer);
-
-		VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
-		accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-		accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-		accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-		accelerationStructureGeometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-		accelerationStructureGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
-		accelerationStructureGeometry.geometry.instances.data = instanceDataDeviceAddress;
-
-		//uint32_t primitive_count = asInstances.size();
-		uint32_t primitive_count = BLAS_MAX_COUNT;
-		// Get size info
-		/*
-		The pSrcAccelerationStructure, dstAccelerationStructure, and mode members of pBuildInfo are ignored. Any VkDeviceOrHostAddressKHR members of pBuildInfo are ignored by this command, except that the hostAddress member of VkAccelerationStructureGeometryTrianglesDataKHR::transformData will be examined to check if it is NULL.*
-		*/
-		VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
-		accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-		accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-		accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
-		accelerationStructureBuildGeometryInfo.geometryCount = 1; // one TLAS
-		accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
-
-		accelerationStructureBuildGeometryInfo.mode = isFirstBuild ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR
-			: VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
-
-		VkAccelerationStructureBuildSizesInfoKHR tlasAccelerationStructureBuildSizesInfo{};
-		tlasAccelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-		vkGetAccelerationStructureBuildSizesKHR(
-			device,
-			VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-			&accelerationStructureBuildGeometryInfo,
-			&primitive_count,
-			&tlasAccelerationStructureBuildSizesInfo);
-
-		VkDeviceSize scratchSizeMax = std::max(tlasAccelerationStructureBuildSizesInfo.buildScratchSize, tlasAccelerationStructureBuildSizesInfo.updateScratchSize);
-		if (isFirstBuild)
-		{
-			createAccelerationStructureBuffer(topLevelAS, tlasAccelerationStructureBuildSizesInfo);
-
-			VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
-			accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-			accelerationStructureCreateInfo.buffer = topLevelAS.buffer;
-			accelerationStructureCreateInfo.size = tlasAccelerationStructureBuildSizesInfo.accelerationStructureSize;
-			accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-			vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &topLevelAS.handle);
-
-			// Create a small scratch buffer used during build of the top level acceleration structure
-			tlasScratchSize = scratchSizeMax;
-			tlasScratchBuffer = createScratchBuffer(scratchSizeMax);
-		}
-		else
-		{
-			accelerationStructureBuildGeometryInfo.srcAccelerationStructure = topLevelAS.handle;
-			if (tlasScratchSize < scratchSizeMax)
-			{
-				deleteScratchBuffer(tlasScratchBuffer);
-				tlasScratchBuffer = createScratchBuffer(scratchSizeMax);
-			}
-		}
-		accelerationStructureBuildGeometryInfo.dstAccelerationStructure = topLevelAS.handle;
-		accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = tlasScratchBuffer.deviceAddress;
-
-		VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo{};
-		accelerationStructureBuildRangeInfo.primitiveCount = primitive_count;
-		accelerationStructureBuildRangeInfo.primitiveOffset = 0;
-		accelerationStructureBuildRangeInfo.firstVertex = 0;
-		accelerationStructureBuildRangeInfo.transformOffset = 0;
-		std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
-
-		// Build the acceleration structure on the device via a one-time command buffer submission
-		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
-		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-
-
-		//// Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
-		//VkMemoryBarrier barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
-		//barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		//barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-		//vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-		//	VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
-
-
-		vkCmdBuildAccelerationStructuresKHR(
-			commandBuffer,
-			1,
-			&accelerationStructureBuildGeometryInfo,
-			accelerationBuildStructureRangeInfos.data());
-		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
-	}
-#else // !DYNAMIC_SCENE
 	/*
 	Create the bottom level acceleration structure that contains the scene's actual geometry (vertices, triangles)
 	*/
@@ -719,7 +207,6 @@ public:
 			geometry.indexBufferDeviceAddress = getBufferDeviceAddress(scene.splittedIndices[cellIdx].buffer);
 			geometries.push_back(geometry);
 		}
-#
 
 		// material infos: textures, shading informations
 		std::vector<MaterialInfo> materials;
@@ -1210,7 +697,6 @@ public:
 		deleteScratchBuffer(scratchBuffer);
 		instancesBuffer.destroy();
 	}
-#endif
 
 	/*
 		Create the Shader Binding Tables that binds the programs and top-level acceleration structure
@@ -1260,9 +746,6 @@ public:
 			vks::initializers::specializationMapEntry(1, sizeof(uint32_t), sizeof(uint32_t)),
 			vks::initializers::specializationMapEntry(2, sizeof(uint32_t) * 2, sizeof(uint32_t)),
 			vks::initializers::specializationMapEntry(3, sizeof(uint32_t) * 3, sizeof(uint32_t)),
-#if DYNAMIC_SCENE
-			vks::initializers::specializationMapEntry(4, sizeof(uint32_t) * 4, sizeof(uint32_t)) // NumStaticBlas
-#endif
 		};
 		VkSpecializationInfo specializationInfo = vks::initializers::specializationInfo(static_cast<uint32_t>(specializationMapEntries.size()), specializationMapEntries.data(), sizeof(SpecializationData), &specializationData);
 
@@ -1832,44 +1315,6 @@ public:
 		loadCubemap(getAssetPath() + CUBEMAP_TEXTURE_PATH, VK_FORMAT_R8G8B8A8_UNORM);
 	}
 
-#if DYNAMIC_SCENE
-	void initSceneObjects()
-	{
-		for (auto& node : scene.linearNodes)
-		{
-			bool isDynamic = !node->isStatic;
-			// Add Dynamic Mesh
-			if (isDynamic)
-			{
-				glm::mat4* pCamTransform = nullptr;
-
-				// Arguments
-				DynamicObject::TYPE eType = DynamicObject::TYPE::NONE;
-				if (node->name == "Cube")
-				{
-					eType = DynamicObject::eInstancingCube;
-#if FIXED_INSTANCING
-					// Destroy When Releasing ObjManager
-					InstancingObject* pInstancingObj = new InstancingObject(nullptr, node->mesh, eType, g_numInstancing);
-					pInstancingObj->resetInstancingPositions(node->generatePositions);
-#else
-					// Destroy When Releasing ObjManager
-					InstancingObject* pInstancingObj = new InstancingObject(nullptr, node->mesh, eType, g_numInstancing);
-					(*pInstancingObj->pTransformMat)[3].y += 1.f;
-#endif
-
-					pInstancingObj->moveDistanceMax = 0.2f;
-					pInstancingObj->rotSpeed *= 3.f;
-
-					sceneObjManager.EmplaceObject(node->name, pInstancingObj, true, true);
-				}
-
-			}
-		}
-	}
-#endif
-
-
 	bool initVulkan() {
 		// Auto-compile shaders
 		// Remove 'pause' from batch file for speedy execution
@@ -1897,9 +1342,7 @@ public:
 #endif
 
 		loadAssets();
-#if DYNAMIC_SCENE
-		initSceneObjects();
-#endif
+
 		frameObjects.resize(swapChain.imageCount);
 
 		createCommandBuffers();
@@ -1973,14 +1416,6 @@ public:
 #endif
 
 		vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
-#if DYNAMIC_SCENE
-		if (isFirstRender == false)
-		{
-			createBottomLevelAccelerationStructure();
-			createTopLevelAccelerationStructure();
-		}
-		isFirstRender = false;
-#endif
 		updateUniformBuffer();
 
 		draw();

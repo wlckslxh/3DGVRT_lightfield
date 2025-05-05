@@ -88,5 +88,6 @@ endfunction(buildProjects)
 set(PROJECTS
 	VulkanFullRT
 	VulkanHybrid
+)
 
 buildProjects()
