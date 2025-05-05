@@ -217,7 +217,6 @@ std::string VulkanRTBase::getShadersPath() const
 	return getShaderBasePath() + shaderDir + "/";
 }
 
-#if ASYNC
 bool VulkanRTBase::updateOverlayBuffers(vks::UIOverlay& UIOverlay, std::vector<BaseFrameObject*>& frameObjects)
 {
 	ImDrawData* imDrawData = ImGui::GetDrawData();
@@ -292,7 +291,6 @@ bool VulkanRTBase::updateOverlayBuffers(vks::UIOverlay& UIOverlay, std::vector<B
 
 	return updateCmdBuffers;
 }
-#endif
 
 void VulkanRTBase::createPipelineCache()
 {
@@ -873,16 +871,7 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	ImGui::PopStyleVar();
 	ImGui::Render();
 
-#if ASYNC
 	updateOverlayBuffers(UIOverlay, frameObjects);
-#else
-	if (UIOverlay.update() || UIOverlay.updated) {
-		buildCommandBuffers();
-		UIOverlay.updated = false;
-	}
-#endif
-
-
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	/*if (mouseState.buttons.left) {
@@ -1018,13 +1007,7 @@ void VulkanRTBase::submitFrame()
 	else {
 		VK_CHECK_RESULT(result);
 	}
-#if !ASYNC
-#if MULTIQUEUE
-	VK_CHECK_RESULT(vkQueueWaitIdle(presentQueue));
-#else
-	VK_CHECK_RESULT(vkQueueWaitIdle(graphicsQueue));
-#endif
-#endif
+
 	frameIndex = (frameIndex + 1) % swapChain.imageCount;
 }
 
@@ -1127,11 +1110,7 @@ void VulkanRTBase::submitFrameCustomSignal(BaseFrameObject& frame, VkCommandBuff
 	submitInfo.pNext = NULL;
 	submitInfo.pWaitDstStageMask = &waitStages;
 	submitInfo.waitSemaphoreCount = 1;
-#if ASYNC
 	submitInfo.pWaitSemaphores = &frame.presentCompleteSemaphore;
-#else
-	submitInfo.pWaitSemaphores = &semaphores.presentComplete;
-#endif
 	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size());
 	submitInfo.pSignalSemaphores = signalSemaphores.data();
 	submitInfo.commandBufferCount = 1;

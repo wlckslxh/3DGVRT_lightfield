@@ -1215,11 +1215,7 @@ public:
 				subresourceRange);
 #endif
 
-#if ASYNC
 			drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex], frame.vertexBuffer, frame.indexBuffer);
-#else
-			drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex]);
-#endif
 
 			vkCmdWriteTimestamp(frame.commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frame.timeStampQueryPool, 0);
 
@@ -1227,7 +1223,6 @@ public:
 		}
 	}
 
-#if ASYNC
 	void buildCommandBuffer(FrameObject& frame)
 	{
 		if (resized)
@@ -1338,7 +1333,6 @@ public:
 
 		VK_CHECK_RESULT(vkEndCommandBuffer(frame.commandBuffer));
 	}
-#endif
 
 	void createDescriptorSets()
 	{
@@ -1810,9 +1804,7 @@ public:
 		uniformDataOffscreen.modelMatrix = glm::mat4(1.0f);
 		uniformDataOffscreen.modelViewProjectionMatrix = camera.matrices.perspective * camera.matrices.view;
 		uniformDataOffscreen.modelMatrixInvTrans = glm::inverseTranspose(glm::mat4(1.0f));
-#if ASYNC
 		memcpy(uniformBufferOffscreen.mapped, &uniformDataOffscreen, sizeof(UniformDataOffscreen));
-#endif
 	}
 
 	void updateUniformBufferComposition()
@@ -1820,10 +1812,8 @@ public:
 		uniformData.viewInverse = glm::inverse(camera.matrices.view);
 		uniformData.projInverse = glm::inverse(camera.matrices.perspective);
 
-#if ASYNC
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		memcpy(currentFrame.uniformBuffer.mapped, &uniformData, sizeof(uniformData));
-#endif
 	}
 
 	bool initVulkan() {
@@ -1904,15 +1894,12 @@ public:
 			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &frame.offscreenCommandBuffer));
 			buildOffscreenCommandBuffer(frame);
 		}
-#if !ASYNC
-		buildCommandBuffers();
-#endif
+
 		prepared = true;
 	}
 
 	void draw()
 	{
-#if ASYNC
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		VulkanRTBase::prepareFrame(currentFrame);
 
@@ -1924,38 +1911,14 @@ public:
 
 		buildOffscreenCommandBuffer(currentFrame);
 		buildCommandBuffer(currentFrame);
-#else
-		VulkanRTBase::prepareFrame();
-		uint32_t frameIndex = acquiredIndex;
-		FrameObject currentFrame = frameObjects[frameIndex];
-
-		memcpy(uniformBufferOffscreen.mapped, &uniformDataOffscreen, sizeof(uniformDataOffscreen));
-		memcpy(currentFrame.uniformBufferComposition.mapped, &uniformDataComposition, sizeof(uniformDataComposition));
-
-		buildOffscreenCommandBuffer(currentFrame);
-#endif
 	
 		// [Pass 0] Offscreen
 		std::vector<VkSemaphore> signalSemaphores = { currentFrame.offscreenSemaphore };
 		submitFrameCustomSignal(currentFrame, currentFrame.offscreenCommandBuffer, signalSemaphores);
 
 		// [Pass 1] Ray tracing composition
-#if ASYNC
 		std::vector<VkSemaphore> waitSemaphores = { currentFrame.offscreenSemaphore };
 		submitFrameCustomWait(currentFrame, waitSemaphores);
-#else
-		submitInfo.pNext = NULL;
-		submitInfo.pWaitDstStageMask = &lightingWaitStages;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &currentFrame.offscreenSemaphore;
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &currentFrame.commandBuffer;
-		calculateFPS(frameObjects[acquiredIndex]);
-		VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
-		VulkanRTBase::submitFrame();
-#endif
 	}
 
 	virtual void render()

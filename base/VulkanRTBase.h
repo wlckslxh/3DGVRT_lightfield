@@ -89,10 +89,8 @@ struct BaseFrameObject
 	vks::Buffer uniformBufferStaticLight;
 	VkQueryPool timeStampQueryPool;
 	std::vector<uint64_t> timeStamps;
-#if ASYNC
 	vks::Buffer vertexBuffer;
 	vks::Buffer indexBuffer;
-#endif
 };
 
 class VulkanRTBase
@@ -126,9 +124,7 @@ private:
 protected:
 	// Returns the path to the root of the glsl or hlsl shader directory.
 	std::string getShadersPath() const;
-#if ASYNC
 	virtual bool updateOverlayBuffers(vks::UIOverlay& UIOverlay, std::vector<BaseFrameObject*>& frameObjects);
-#endif
 	void calculateFPS(BaseFrameObject& frame);
 
 	// Frame counter to display fps

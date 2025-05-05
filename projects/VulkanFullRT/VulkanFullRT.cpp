@@ -1021,7 +1021,6 @@ public:
 	/*
 		Command buffer record
 	*/
-#if ASYNC
 	void buildCommandBuffer(FrameObject& frame)
 	{
 		if (resized)
@@ -1131,7 +1130,6 @@ public:
 
 		VK_CHECK_RESULT(vkEndCommandBuffer(frame.commandBuffer));
 	}
-#endif
 
 	virtual void buildCommandBuffers()
 	{
@@ -1251,10 +1249,8 @@ public:
 		uniformData.viewInverse = glm::inverse(camera.matrices.view);
 		uniformData.projInverse = glm::inverse(camera.matrices.perspective);
 
-#if ASYNC
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		memcpy(currentFrame.uniformBuffer.mapped, &uniformData, sizeof(uniformData));
-#endif
 	}
 
 	virtual void getEnabledFeatures()
@@ -1377,15 +1373,11 @@ public:
 		createRayTracingPipeline();
 		createShaderBindingTables();
 
-#if !ASYNC
-		buildCommandBuffers();
-#endif
 		prepared = true;
 	}
 
 	void draw()
 	{
-#if ASYNC
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		VulkanRTBase::prepareFrame(currentFrame);
 #if DIRECTRENDER
@@ -1395,15 +1387,6 @@ public:
 #endif
 		buildCommandBuffer(currentFrame);
 		VulkanRTBase::submitFrame(currentFrame);
-#else
-		VulkanRTBase::prepareFrame();
-		memcpy(frameObjects[acquiredIndex].uniformBuffer.mapped, &uniformData, sizeof(uniformData));
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &frameObjects[acquiredIndex].commandBuffer;
-		calculateFPS(frameObjects[acquiredIndex]);
-		VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
-		VulkanRTBase::submitFrame();
-#endif
 	}
 
 	virtual void render()
