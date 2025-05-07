@@ -25,8 +25,6 @@
 #define TIMER_CORRECTION 1
 #define TEXTURE_COMPRESSION 1
 
-#define ANY_HIT 0	// This macro should be managed with define.glsl
-
 #define USE_ANIMATION 0 // 0 is Default
 
 #if ASSET == 0
