@@ -1,7 +1,7 @@
 /*
  * Abura Soba, 2025
  *
- * define.glsl
+ * 3dgs.glsl
  *
  */
 
@@ -32,7 +32,7 @@ struct Param {
 	float particleRadiance;
 	float hitMinGaussianResponse;
 	float alphaMinThreshold;
-	unsigned int sphDegree;
+	uint sphDegree;
 
 	float particleVisibility;
-}
+};

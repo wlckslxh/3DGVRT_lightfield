@@ -26,19 +26,19 @@
 //};
 
 /*** 3dgrt style ***/
-struct RayHit{
-	unsigned int particleId;
+struct RayHit {
+	uint particleId;
 	float dist;
-}
+};
 
 struct RayPayload{
 	RayHit hits[MAX_HIT_PER_TRACE];
+};
 
-	void initialize(){
-		for(int i = 0; i < MAX_HIT_PER_TRACE){
-			hits[i].particleId = INVALID_PARTICLE_ID;
-			hits[i].dist = INFINITE_DISTANCE;
-		}
+void initializeRayPayload(RayPayload rayPayload){
+	for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+		rayPayload.hits[i].particleId = INVALID_PARTICLE_ID;
+		rayPayload.hits[i].dist = INFINITE_DISTANCE;
 	}
 }
 
@@ -71,7 +71,7 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 {
 	mat4 viewInverse;
 	mat4 projInverse;
-	Light lights[numOfDynamicLights];
+//	Light lights[numOfDynamicLights];
 } ubo;
 
 
@@ -95,18 +95,18 @@ vec2 frameBounds;
 //	return accumulated_radiance;
 //}
 
-vec2 intersectAABB(const AABB aabb, vec3 rayOri, vec3 rayDir){
+vec2 intersectAABB(const Aabb aabb, vec3 rayOri, vec3 rayDir){
 	vec3 t0 = vec3(aabb.minX, aabb.minY, aabb.minZ) - rayOri / rayDir;
 	vec3 t1 = vec3(aabb.maxX, aabb.maxY, aabb.maxZ) - rayOri / rayDir;
 	vec3 tmax = vec3(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));
 	vec3 tmin = vec3(min(t0.x, t1.x), min(t0.y, t1.y), min(t0.z, t1.z));
-	float maxOfMin = max(0.0f, max(tmin.x, max(tmin.y, tmin.z);
+	float maxOfMin = max(0.0f, max(tmin.x, max(tmin.y, tmin.z)));
 	float minOfMax = min(tmax.x, min(tmax.y, tmax.z));
 	return vec2(maxOfMin, minOfMax);
 }
 
 void trace(RayPayload rayPayload, vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
-	rayPayload.initialize();
+	initializeRayPayload(rayPayload);
 	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 1, 0, rayOri, tmin, rayDir, tmax, 0);
 }
 
