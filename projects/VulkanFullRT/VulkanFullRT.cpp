@@ -16,7 +16,20 @@
 class VulkanFullRT : public VulkanRTCommon
 {
 public:
+	struct MixtureOfGaussians {
+		std::vector<glm::vec3> positions;
+		glm::mat4 rotation;
+		std::vector<glm::vec3> scale;
+		float density;
+		std::vector<glm::vec3> featuresAlbedo;
+		std::vector<float> featuresSpecular;
+		bool nActiveFeatures;
+		bool maxNFeatures;
+		bool sceneExtent;
+	};
+
 	AccelerationStructure bottomLevelAS{};
+	AccelerationStructure topLevelAS{};
 
 	struct GeometryNode {
 		uint64_t vertexBufferDeviceAddress;
@@ -33,7 +46,6 @@ public:
 		float roughnessFactor;
 	};
 	vks::Buffer geometryNodesBuffer;
-	AccelerationStructure topLevelAS{};
 
 	uint32_t indexCount{ 0 };
 	vks::Buffer transformBuffer;
@@ -63,6 +75,13 @@ public:
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
 
+	struct Compute {
+		//VkQueue queue;
+
+		VkPipeline pipeline{ VK_NULL_HANDLE };
+		VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
+		VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
+	} compute;
 
 	vkglTF::Model scene;
 
@@ -71,6 +90,7 @@ public:
 		StorageImage storageImage;
 #endif
 		VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
+		VkDescriptorSet computeDescriptorSet{ VK_NULL_HANDLE };
 	};
 
 	std::vector<FrameObject> frameObjects;
@@ -428,9 +448,7 @@ public:
 			/---------------------------------------\
 			| Raygen                                |
 			|---------------------------------------|
-			| Miss(Sky Box)                         |
-			|---------------------------------------|
-			| Shadow Miss                           |
+			| Miss(dummy)                           |
 			|---------------------------------------|
 			| Closest Hit(Basic)                    |
 			\---------------------------------------/
@@ -455,6 +473,20 @@ public:
 		memcpy(shaderBindingTables.miss.mapped, shaderHandleStorage.data() + handleSizeAligned, handleSize);
 		// Global[2], Group Local[0]: Hit group
 		memcpy(shaderBindingTables.hit.mapped, shaderHandleStorage.data() + handleSizeAligned * 2, handleSize);
+	}
+
+	/*
+		Create out compute pipeline
+	*/
+	void createComputePipeline()
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&compute.descriptorSetLayout, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &compute.pipelineLayout));
+
+		VkComputePipelineCreateInfo computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(compute.pipelineLayout, 0);
+		computePipelineCreateInfo.stage = loadShader(getShadersPath() + DIR_PATH + "compute.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &compute.pipeline));
 	}
 
 	/*
@@ -547,17 +579,40 @@ public:
 	*/
 	void createDescriptorSets()
 	{
-		uint32_t imageCount = static_cast<uint32_t>(scene.textures.size());
 		std::vector<VkDescriptorPoolSize> poolSizes = {
 			{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * swapChain.imageCount },
 			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount },
 			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount },
+			// preparing descriptors for compute shader...
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount);
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount * 2); // compute pipeline + ray tracing pipeline
 
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));	// descriptor pool
 
+		// for compute pipeline begin
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+			// preparing...
+		};
+
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &compute.descriptorSetLayout));
+
+		for (auto& frame : frameObjects)
+		{
+			VkDescriptorSet& descriptorSet = frame.descriptorSet;
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &compute.descriptorSetLayout, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet));
+
+			std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
+				// preparing...
+			};
+
+			vkUpdateDescriptorSets(device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
+		}
+		// for compute pipeline end
+		
+		// for ray tracing pipeline begin
+		setLayoutBindings = {
 			// Binding 0: Top level acceleration structure
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0),
 			// Binding 1: Ray tracing result image
@@ -568,15 +623,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 3),
 		};
 
-		std::vector<VkDescriptorBindingFlagsEXT> descriptorBindingFlags(setLayoutBindings.size(), 0);
-
-		VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags{};
-		setLayoutBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
-		setLayoutBindingFlags.bindingCount = descriptorBindingFlags.size();
-		setLayoutBindingFlags.pBindingFlags = descriptorBindingFlags.data();
-
-		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		descriptorSetLayoutCI.pNext = &setLayoutBindingFlags;
+		descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayout));
 
 		for (auto& frame : frameObjects)
@@ -619,6 +666,7 @@ public:
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 		}
+		// for ray tracing pipeline end
 	}
 
 	/*
