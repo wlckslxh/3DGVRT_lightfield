@@ -25,7 +25,7 @@ namespace vks {
 			copyRegion.srcOffset = 0;
 			copyRegion.dstOffset = 0;
 			copyRegion.size = stagingBuffer.size;
-			vulkanDevice->copyBuffer(&stagingBuffer, &currentFrame.uniformBufferStaticLight, graphicsQueue, &copyRegion);
+			vulkanDevice->copyBuffer(&stagingBuffer, &currentFrame.uniformBufferStatic, graphicsQueue, &copyRegion);
 
 			vkDestroyBuffer(vulkanDevice->logicalDevice, stagingBuffer.buffer, nullptr);
 			vkFreeMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, nullptr);

@@ -86,7 +86,7 @@ struct BaseFrameObject
 	VkSemaphore presentCompleteSemaphore;
 	uint32_t imageIndex;
 	vks::Buffer uniformBuffer;
-	vks::Buffer uniformBufferStaticLight;
+	vks::Buffer uniformBufferStatic;
 	VkQueryPool timeStampQueryPool;
 	std::vector<uint64_t> timeStamps;
 	vks::Buffer vertexBuffer;
