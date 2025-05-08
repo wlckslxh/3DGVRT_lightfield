@@ -19,6 +19,7 @@ include_directories(external/ktx/other_include)
 include_directories(external/ktx/external)
 include_directories(external/ktx/external/basisu/zstd)
 include_directories(external/ktx/external/dfdutils)
+include_directories(external/miniply)
 include_directories(base)
 
 OPTION(USE_D2D_WSI "Build the project using Direct to Display swapchain" OFF)
