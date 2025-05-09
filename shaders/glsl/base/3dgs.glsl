@@ -36,3 +36,12 @@ struct Param {
 
 	float particleVisibility;
 };
+
+struct RayHit {
+	uint particleId;
+	float dist;
+};
+
+struct RayPayload {
+	RayHit hits[MAX_HIT_PER_TRACE];
+};
