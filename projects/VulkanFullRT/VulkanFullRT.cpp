@@ -102,6 +102,11 @@ public:
 				frame.uniformBuffer.destroy();
 				frame.uniformBufferStatic.destroy();
 				vkDestroyQueryPool(device, frame.timeStampQueryPool, nullptr);
+
+				/* 3DGRT */
+				frame.particleDensities.destroy();
+				frame.particleSphCoefficients.destroy();
+				frame.particleVisibility.destroy();
 			}
 
 			geometryNodesBuffer.destroy();
@@ -566,6 +571,18 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 2),
 			// Binding 3: Uniform buffer Static
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 3),
+			// Binding 4: Storage buffer - Particle Densities
+			vks::initializers::descriptorSetLayoutBinding(
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
+			// Binding 5: Storage buffer - Particle Sph Coefficients
+			vks::initializers::descriptorSetLayoutBinding(
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
+			// Binding 6: Storage buffer - Particle Visibility
+			vks::initializers::descriptorSetLayoutBinding(
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 6),
 		};
 
 		std::vector<VkDescriptorBindingFlagsEXT> descriptorBindingFlags(setLayoutBindings.size(), 0);
@@ -615,6 +632,9 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &frame.uniformBuffer.descriptor),
 				// Binding 3: Uniform data Static
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3, &frame.uniformBufferStatic.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &frame.particleDensities.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &frame.particleSphCoefficients.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &frame.particleVisibility.descriptor),
 			};
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
