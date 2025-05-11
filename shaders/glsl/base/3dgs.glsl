@@ -10,6 +10,9 @@
 #define SPH_MAX_NUM_COEFFS 16	// "render/3dgrt.yaml - particle_radiance_sph_degree" : (x+1) * (x+1)
 
 #define BUFFER_REFERENCE false
+
+#define ENABLE_NORMALS false
+#define ENABLE_HIT_COUNTS true
 #define PARTICLE_KERNEL_DEGREE 4 // "render/3dgrt.yaml - particle_kernel_degree" : 4
 #define SURFEL_PRIMITIVE false // "render/3dgrt.yaml - primitive_type" : instances -> false
 
@@ -49,13 +52,13 @@ struct Param {
 	float particleRadiance;
 	float hitMinGaussianResponse;
 	float alphaMinThreshold;
-	uint sphDegree;
+	uint sphEvalDegree;
 
 	float particleVisibility;
 };
 
 struct RayHit {
-	uint particleId;
+	int particleId;
 	float dist;
 };
 
@@ -65,3 +68,4 @@ struct RayPayload {
 
 layout(buffer_reference, scalar) buffer Densities { ParticleDensity d[]; };
 layout(buffer_reference, scalar) buffer SphCoefficients { float sc[]; };
+layout(buffer_reference, scalar) buffer Visibility { float v[]; };
