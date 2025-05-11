@@ -10,20 +10,14 @@
 
 #version 460
 #extension GL_EXT_ray_tracing : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_nonuniform_qualifier : require
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 //#include "../base/define.glsl"
 //#include "../base/light.glsl"
 //#include "../base/geometrytypes.glsl"
 #include "../base/3dgs.glsl"
-
-//struct RayPayload {
-//	vec3 color;
-//	float dist;
-//	vec3 normal;
-//	int effectFlag;
-//};
 
 /*** 3dgrt style ***/
 
@@ -179,7 +173,7 @@ float particleResponse(float grayDist){
 
 #if BUFFER_REFERENCE
 void fetchParticleDensity(
-	const int particleIdx,
+	const uint particleIdx,
 	const uint64_t densityBufferDeviceAddress,
 	out vec3 particlePosition,
 	out vec3 particleScale,
@@ -194,7 +188,7 @@ void fetchParticleDensity(
 }
 
 void fetchParticleSphCoefficients(
-	const int particleIdx,
+	const uint particleIdx,
 	const float sphCoefficientBufferDeviceAddress,
 	out vec3 sphCoefficients[]) {
 	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;
@@ -208,12 +202,12 @@ void fetchParticleSphCoefficients(
 }
 #else
 void fetchParticleDensity(
-	const int particleIdx,
+	const uint particleIdx,
 	out vec3 particlePosition,
 	out vec3 particleScale,
 	out mat3 particleRotation,
 	out float particleDensity){
-	const ParticleDensity particleData = particleDensities.d[particleIdx];
+	const ParticleDensity particleData = particleDensities.d[nonuniformEXT(particleIdx)];
 
 	particlePosition = particleData.position;
 	particleScale = particleData.scale;
@@ -222,15 +216,15 @@ void fetchParticleDensity(
 }
 
 void fetchParticleSphCoefficients(
-	const int particleIdx,
+	const uint particleIdx,
 	out vec3 sphCoefficients[SPH_MAX_NUM_COEFFS]) {
 	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;
 	for(uint i = 0; i < SPH_MAX_NUM_COEFFS; i++){
 		uint offset = i * 3;
 		sphCoefficients[i] = vec3(
-			particleSphCoefficients.c[particleOffset + offset + 0],
-            particleSphCoefficients.c[particleOffset + offset + 1],
-            particleSphCoefficients.c[particleOffset + offset + 2]);
+			particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 0)],
+            particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 1)],
+            particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 2)]);
 	}
 }
 #endif
@@ -269,7 +263,7 @@ vec3 radianceFromSpH(int deg, const vec3 sphCoefficients[SPH_MAX_NUM_COEFFS], co
 bool processHit(
 	vec3 rayOrigin,
 	vec3 rayDirection,
-	int particleIdx,
+	uint particleIdx,
 //#if BUFFER_REFERENCE
 //	const uint64_t densityBufferDeviceAddress,
 //	const uint64_t sphCoefficientBufferDeviceAddress,
@@ -386,6 +380,7 @@ void main()
 #if BUFFER_REFERENCE
 					params.densityBufferDeviceAddress,
 					params.sphCoefficientBufferDeviceAddress,
+					params.visibilityBufferDeviceAddress,
 #endif
 					params.hitMinGaussianResponse,
 					params.alphaMinThreshold,
@@ -399,7 +394,7 @@ void main()
 				);
 
 				if(acceptedHit){
-					particleVisibility.v[rayHit.particleId] = 1;
+					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1;
 				}
 
 				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
