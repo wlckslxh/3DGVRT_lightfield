@@ -282,7 +282,7 @@ public:
 
 	std::string title = "Vulkan Example";
 	std::string name = "vulkanExample";
- 	uint32_t apiVersion = VK_API_VERSION_1_3;
+ 	uint32_t apiVersion = VK_API_VERSION_1_4;
 
 	/** @brief Default depth stencil attachment used by the default render pass */
 	struct DepthStencil {

@@ -69,7 +69,7 @@ extern "C" {
 #define VK_API_VERSION_1_0 VK_MAKE_API_VERSION(0, 1, 0, 0)// Patch version should always be set to 0
 
 // Version of this file
-#define VK_HEADER_VERSION 283
+#define VK_HEADER_VERSION 313
 
 // Complete version of this file
 #define VK_HEADER_VERSION_COMPLETE VK_MAKE_API_VERSION(0, 1, 3, VK_HEADER_VERSION)
@@ -6510,9 +6510,11 @@ VKAPI_ATTR uint64_t VKAPI_CALL vkGetDeviceMemoryOpaqueCaptureAddress(
 
 
 // VK_VERSION_1_3 is a preprocessor guard. Do not pass it to API calls.
-#define VK_VERSION_1_3 1
+#define VK_VERSION_1_3 0
+#define VK_VERSION_1_4 1
 // Vulkan 1.3 version number
 #define VK_API_VERSION_1_3 VK_MAKE_API_VERSION(0, 1, 3, 0)// Patch version should always be set to 0
+#define VK_API_VERSION_1_4 VK_MAKE_API_VERSION(0, 1, 4, 0)// Patch version should always be set to 0
 
 typedef uint64_t VkFlags64;
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkPrivateDataSlot)

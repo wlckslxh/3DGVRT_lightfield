@@ -1362,7 +1362,7 @@ bool VulkanRTBase::initVulkan()
 			vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
 			std::cout << "\tDevice [" << i << "] : " << deviceProperties.deviceName << std::endl;
 			std::cout << "\t\tType: " << vks::tools::physicalDeviceTypeString(deviceProperties.deviceType) << "\n";
-			std::cout << "\t\tAPI: " << (deviceProperties.apiVersion >> 22) << "." << ((deviceProperties.apiVersion >> 12) & 0x3ff) << "." << (deviceProperties.apiVersion & 0xfff) << "\n";
+			std::cout << "\t\tAPI: " << VK_API_VERSION_MAJOR(deviceProperties.apiVersion) << "." << VK_API_VERSION_MINOR(deviceProperties.apiVersion) << "." << VK_API_VERSION_PATCH(deviceProperties.apiVersion) << "\n";
 			bool result = sg::checkDeviceExtensionSupport(physicalDevices[i], enabledDeviceExtensions);
 			if (result) {
 				selectedDevice = i;

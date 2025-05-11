@@ -74,6 +74,12 @@ It's still being prepared. 😘 <br/>
     adb remount
     adb shell setenforce 0
     ```
+- Vulkan version 😎
+    ```
+    SDK version 1.4.313.0
+    Vulkan driver version 576.28.0.0
+    ➡️ 1.4.303.0
+    ```
 
 ## 🏭 List of Projects
 
