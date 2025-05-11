@@ -18,6 +18,7 @@
 //#include "../base/light.glsl"
 //#include "../base/geometrytypes.glsl"
 #include "../base/3dgs.glsl"
+#include "../base/utils.glsl"
 
 /*** 3dgrt style ***/
 
@@ -62,13 +63,13 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 
 // gas->aabb
 Param params;
-layout(std140, binding = 5, set = 0) buffer ParticleDensitieBuffer {
+layout(std140, binding = 4, set = 0) buffer ParticleDensitieBuffer {
 	ParticleDensity d[];
 } particleDensities;
-layout(std140, binding = 6, set = 0) buffer ParticleSphCoefficients {
+layout(std140, binding = 5, set = 0) buffer ParticleSphCoefficients {
 	float c[];
 } particleSphCoefficients;
-layout(std140, binding = 7, set = 0) buffer ParticleVisibility {
+layout(std140, binding = 6, set = 0) buffer ParticleVisibility {
 	float v[];
 } particleVisibility;
 
@@ -87,47 +88,9 @@ layout(std140, binding = 7, set = 0) buffer ParticleVisibility {
 //	return accumulated_radiance;
 //}
 
-vec2 intersectAABB(const Aabb aabb, vec3 rayOri, vec3 rayDir){
-	vec3 t0 = vec3(aabb.minX, aabb.minY, aabb.minZ) - rayOri / rayDir;
-	vec3 t1 = vec3(aabb.maxX, aabb.maxY, aabb.maxZ) - rayOri / rayDir;
-	vec3 tmax = vec3(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));
-	vec3 tmin = vec3(min(t0.x, t1.x), min(t0.y, t1.y), min(t0.z, t1.z));
-	float maxOfMin = max(0.0f, max(tmin.x, max(tmin.y, tmin.z)));
-	float minOfMax = min(tmax.x, min(tmax.y, tmax.z));
-	return vec2(maxOfMin, minOfMax);
-}
-
 void trace(RayPayload rayPayload, vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
 	initializeRayPayload(rayPayload);
 	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 1, 0, rayOri, tmin, rayDir, tmax, 0);
-}
-
-mat3 quaternionWXYZToMatrix(const vec4 q){
-	const float w = q.x;
-    const float x = q.y;
-    const float y = q.z;
-    const float z = q.w;
-
-    const float xx = x * x;
-    const float yy = y * y;
-    const float zz = z * z;
-    const float xy = x * y;
-    const float xz = x * z;
-    const float yz = y * z;
-    const float wx = w * x;
-    const float wy = w * y;
-    const float wz = w * z;
-
-	return mat3(
-        1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz),       2.0 * (xz + wy),
-        2.0 * (xy + wz),       1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx),
-        2.0 * (xz - wy),       2.0 * (yz + wx),       1.0 - 2.0 * (xx + yy)
-    );
-}
-
-vec3 safe_normalize(vec3 v){
-	const float l = v.x * v.x + v.y * v.y + v.z * v.z;
-	return l > 0.0f ? (v * inversesqrt(l)) : v;
 }
 
 float particleResponse(float grayDist){
