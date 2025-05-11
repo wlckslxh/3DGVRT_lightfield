@@ -4,7 +4,6 @@
  * 3dgs.glsl
  *
  */
-
 #define EPS_T 1e-9
 #define MAX_HIT_PER_TRACE 16
 #define SPH_MAX_NUM_COEFFS 16	// "render/3dgrt.yaml - particle_radiance_sph_degree" : (x+1) * (x+1)
@@ -46,9 +45,10 @@ struct Param {
 	Aabb aabb;
 
 	float minTransmittance;
-
+#if BUFFER_REFERENCE
 	uint64_t densityBufferDeviceAddress;
 	uint64_t sphCoefficientBufferDeviceAddress;
+#endif
 	float particleRadiance;
 	float hitMinGaussianResponse;
 	float alphaMinThreshold;
@@ -58,7 +58,7 @@ struct Param {
 };
 
 struct RayHit {
-	int particleId;
+	uint particleId;
 	float dist;
 };
 

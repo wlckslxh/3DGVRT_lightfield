@@ -12,39 +12,31 @@
 
 #extension GL_EXT_ray_tracing : require
 #extension GL_GOOGLE_include_directive : require
-#extension GL_EXT_nonuniform_qualifier : require
-#extension GL_EXT_buffer_reference2 : require
-#extension GL_EXT_scalar_block_layout : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+//#extension GL_EXT_nonuniform_qualifier : require
+//#extension GL_EXT_buffer_reference2 : require
+//#extension GL_EXT_scalar_block_layout : require
+//#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-//#include "../base/define.glsl"
-//#include "../base/geometrytypes.glsl"
-//#include "../base/bufferreferences.glsl"
 #include "../base/3dgs.glsl"
-
-//hitAttributeEXT vec2 attribs;
-//layout(binding = 4, set = 0) uniform sampler2D textures[];
-//layout(binding = 6, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-
-//#include "../base/geometryfunctions.glsl"
+#include "../base/utils.glsl"
 
 layout(location = 0) rayPayloadEXT RayPayload rayPayload;
 
-void compareAndSwapHitPayloadValue(inout Rayhit hit, int idx){
-	const float dist = rayPayload.hit[idx].dist;
-	if(hit.dist < dist){
-		rayPayload.hit[idx].dist = hit.dist;
-		const uint id = rayPayload.hit[idx].particleId;
-		rayPayload.hit[idx].particleId = hit.particleId;
-		hit.dist = dist;
-		hit.particleId = id;
-	}
+void compareAndSwapHitPayloadValue(inout RayHit hit, int idx) {
+    const float dist = rayPayload.hits[idx].dist;
+    if (hit.dist < dist) {
+        rayPayload.hits[idx].dist = hit.dist;
+        const uint id = rayPayload.hits[idx].particleId;
+        rayPayload.hits[idx].particleId = hit.particleId;
+        hit.dist = dist;
+        hit.particleId = id;
+    }
 }
 
 void main(){
-	Rayhit hit = RayHit(gl_PrimitiveID, gl_HitTEXT);
+	RayHit hit = RayHit(gl_PrimitiveID, gl_HitTEXT);
 
-	if(hit.dist < rayPayload.hit[MAX_HIT_PER_TRACE - 1].dist){
+	if(hit.dist < rayPayload.hits[MAX_HIT_PER_TRACE - 1].dist){
 #pragma unroll
 		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
 			compareAndSwapHitPayloadValue(hit, i);
@@ -67,7 +59,7 @@ void main(){
 		//	compareAndSwapHitPayloadValue(hit, 14);
 		//	compareAndSwapHitPayloadValue(hit, 15);
 
-		if(rayPayload.hit[MAX_HIT_PER_TRACE - 1].dist > gl_HitTEXT){
+		if(rayPayload.hits[MAX_HIT_PER_TRACE - 1].dist > gl_HitTEXT){
 			ignoreIntersectionEXT;
 		}
 	}
