@@ -504,6 +504,41 @@ namespace vks
 		flushCommandBuffer(copyCmd, queue);
 	}
 
+	void VulkanDevice::copyBuffer(void* data, vks::Buffer* dst, VkQueue queue, VkBufferCopy* copyRegion)
+	{
+		struct StagingBuffer {
+			VkBuffer buffer;
+			VkDeviceMemory memory;
+		};
+
+		StagingBuffer stagingBuffer;
+
+		VK_CHECK_RESULT(createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			dst->size,
+			&stagingBuffer.buffer,
+			&stagingBuffer.memory,
+			data
+		));
+
+		VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+		VkBufferCopy bufferCopy{};
+		if (copyRegion == nullptr)
+		{
+			bufferCopy.size = dst->size;
+		}
+		else
+		{
+			bufferCopy = *copyRegion;
+		}
+		vkCmdCopyBuffer(copyCmd, stagingBuffer.buffer, dst->buffer, 1, &bufferCopy);
+		flushCommandBuffer(copyCmd, queue, true);
+		vkDestroyBuffer(logicalDevice, stagingBuffer.buffer, nullptr);
+		vkFreeMemory(logicalDevice, stagingBuffer.memory, nullptr);
+	}
+
 	/** 
 	* Create a command pool for allocation command buffers from
 	* 

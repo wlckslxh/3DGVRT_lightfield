@@ -135,71 +135,53 @@ namespace vk3DGRT {
 		}
 	}
 
-	void Model::createAndCopyDataToDevice(std::vector<float>& vertexBuffer, std::vector<uint32_t>& indexBuffer, VkQueue transferQueue, vks::VulkanDevice* vulkanDevice)
+	void Model::allocateAttributeBuffers(vks::VulkanDevice* vulkanDevice, VkQueue queue)
 	{
-		struct StagingBuffer {
-			VkBuffer buffer;
-			VkDeviceMemory memory;
-		};
-
-		size_t vertexBufferSize = vertexBuffer.size() * sizeof(float);
-		size_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
-		indices.count = static_cast<uint32_t>(indexBuffer.size());
-		vertices.count = static_cast<uint32_t>(vertexBuffer.size());
-
-		assert((vertexBufferSize > 0) && (indexBufferSize > 0));
-		// Create staging buffers
-		StagingBuffer vertexStaging, indexStaging;
-		// Vertex data
+		vertices.count = 3 * 12 * splatSet.size();
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			vertexBufferSize,
-			&vertexStaging.buffer,
-			&vertexStaging.memory,
-			vertexBuffer.data()));
-		// Index data
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			indexBufferSize,
-			&indexStaging.buffer,
-			&indexStaging.memory,
-			indexBuffer.data()));
-
-		// Create device local buffers
-		// Vertex buffer
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			vertexBufferSize,
-			&vertices.buffer,
-			&vertices.memory));
-		// Index buffer
+			&vertices.storageBuffer,
+			sizeof(float) * vertices.count));
+
+		indices.count = 3 * 20 * splatSet.size();
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			indexBufferSize,
-			&indices.buffer,
-			&indices.memory));
+			&indices.storageBuffer,
+			sizeof(float) * indices.count))
 
-		// Copy from staging buffers
-		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		positions.count = 3 * splatSet.size();
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			&positions.storageBuffer,
+			sizeof(float) * positions.count));
+		vulkanDevice->copyBuffer(splatSet.positions.data(), &positions.storageBuffer, queue);
 
-		VkBufferCopy copyRegion = {};
+		rotations.count = 4 * splatSet.size();
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			&rotations.storageBuffer,
+			sizeof(float) * rotations.count));
+		vulkanDevice->copyBuffer(splatSet.rotation.data(), &rotations.storageBuffer, queue);
 
-		copyRegion.size = vertexBufferSize;
-		vkCmdCopyBuffer(copyCmd, vertexStaging.buffer, vertices.buffer, 1, &copyRegion);
+		scales.count = 3 * splatSet.size();
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			&scales.storageBuffer,
+			sizeof(float) * scales.count));
+		vulkanDevice->copyBuffer(splatSet.scale.data(), &scales.storageBuffer, queue);
 
-		copyRegion.size = indexBufferSize;
-		vkCmdCopyBuffer(copyCmd, indexStaging.buffer, indices.buffer, 1, &copyRegion);
-
-		vulkanDevice->flushCommandBuffer(copyCmd, transferQueue, true);
-
-		vkDestroyBuffer(vulkanDevice->logicalDevice, vertexStaging.buffer, nullptr);
-		vkFreeMemory(vulkanDevice->logicalDevice, vertexStaging.memory, nullptr);
-		vkDestroyBuffer(vulkanDevice->logicalDevice, indexStaging.buffer, nullptr);
-		vkFreeMemory(vulkanDevice->logicalDevice, indexStaging.memory, nullptr);
+		densities.count = splatSet.size();
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			&densities.storageBuffer,
+			sizeof(float) * densities.count));
+		vulkanDevice->copyBuffer(splatSet.opacity.data(), &densities.storageBuffer, queue);
 	}
 }
 

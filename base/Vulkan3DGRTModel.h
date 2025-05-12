@@ -22,11 +22,6 @@ namespace vk3DGRT {
 		inline size_t size() const { return positions.size() / 3; }
 	};
 
-	struct GPrimitive {
-		std::vector<float> gPrimVrt;	// Vertices of IcosaHedron Triangles
-		std::vector<float> gPrimTri;	// Indicies of IcosaHedron Triangles
-	};
-
 	class PLYLoader {
 	public:
 		PLYLoader() {}
@@ -42,19 +37,12 @@ namespace vk3DGRT {
 
 		SplatSet splatSet;		// Loaded 3DGRT model from .ply/.pt file
 
-		struct Vertices {
+		struct Attributes {
 			int count;
-			VkBuffer buffer;
-			VkDeviceMemory memory;
-		} vertices;
-
-		struct Indices {
-			int count;
-			VkBuffer buffer;
-			VkDeviceMemory memory;
-		} indices;
+			vks::Buffer storageBuffer;
+		} positions, rotations, scales, densities, vertices, indices;
 
 		void load3DGRTModel(std::string filename, vks::VulkanDevice* device);
-		void createAndCopyDataToDevice(std::vector<float>& vertexBuffer, std::vector<uint32_t>& indexBuffer, VkQueue transferQueue, vks::VulkanDevice* vulkanDevice);
+		void allocateAttributeBuffers(vks::VulkanDevice* vulkanDevice, VkQueue queue);
 	};
 }

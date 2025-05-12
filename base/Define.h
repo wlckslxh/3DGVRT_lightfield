@@ -84,5 +84,5 @@
 #endif
 
 /*** 3DGS ***/
-#define NUM_OF_GAUSSIANS 256	// This macro should be managed with 3dgs.glsl
 #define BUFFER_REFERENCE false		// This macro should be managed with 3dgs.glsl
+#define NUM_OF_GAUSSIANS 1024	// This macro should be managed with 3dgs.glsl
