@@ -178,7 +178,7 @@ public:
 				vkDestroyQueryPool(device, frame.timeStampQueryPool, nullptr);
 
 				frame.uniformBuffer.destroy();
-				frame.uniformBufferStaticLight.destroy();
+				frame.uniformBufferStatic.destroy();
 			}
 
 
@@ -514,7 +514,7 @@ public:
 	void loadAssets()
 	{
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::PreTransformVertices;
-		vkglTF::memoryPropertyFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		vkglTF::bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 		scene.loadFromFile(getAssetPath() + ASSET_PATH, vulkanDevice, graphicsQueue, glTFLoadingFlags);
 
@@ -1265,7 +1265,7 @@ public:
 				// Binding 8: Cubemap sampler for miss shader
 				vks::initializers::writeDescriptorSet(descriptorSetComposition, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8, &cubeMapDescriptor),
 				// Binding 9: Uniform Buffer for Static Light
-				vks::initializers::writeDescriptorSet(descriptorSetComposition, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 9, &frame.uniformBufferStaticLight.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSetComposition, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 9, &frame.uniformBufferStatic.descriptor),
 				// Binding 10: All images used by the glTF model
 				writeDescriptorImgArray,
 				// Binding 11: Instance information SSBO
@@ -1545,7 +1545,7 @@ public:
 
 			// Uniform buffer per frame object of [Pass 1]
 			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBuffer, sizeof(uniformData), &uniformData));
-			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStaticLight, sizeof(vks::utils::UniformDataStaticLight), nullptr));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStaticLight), nullptr));
 			vks::utils::updateLightStaticInfo(uniformDataStaticLight, frame, scene, vulkanDevice, graphicsQueue);
 
 			// Time Stamp for measuring performance.

@@ -660,6 +660,40 @@ namespace vks
 		}
 		throw std::runtime_error("Could not find a matching depth format");
 	}
+
+	void VulkanDevice::createAndCopyToDeviceBuffer(void* data, VkBuffer& buffer, VkDeviceMemory& memory, size_t bufferSize, VkQueue queue, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryFlags) {
+		struct StagingBuffer {
+			VkBuffer buffer;
+			VkDeviceMemory memory;
+		};
+
+		StagingBuffer stagingBuffer;
+
+		VK_CHECK_RESULT(createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			bufferSize,
+			&stagingBuffer.buffer,
+			&stagingBuffer.memory,
+			data
+		));
+
+		VK_CHECK_RESULT(createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | usageFlags,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | memoryFlags,
+			bufferSize,
+			&buffer,
+			&memory));
+
+		VkCommandBuffer copyCmd = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+		VkBufferCopy copyRegion = {};
+		copyRegion.size = bufferSize;
+		vkCmdCopyBuffer(copyCmd, stagingBuffer.buffer, buffer, 1, &copyRegion);
+		flushCommandBuffer(copyCmd, queue, true);
+		vkDestroyBuffer(logicalDevice, stagingBuffer.buffer, nullptr);
+		vkFreeMemory(logicalDevice, stagingBuffer.memory, nullptr);
+	}
 };
 
 namespace sg {

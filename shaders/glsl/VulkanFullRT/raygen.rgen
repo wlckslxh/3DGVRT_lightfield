@@ -10,96 +10,407 @@
 
 #version 460
 #extension GL_EXT_ray_tracing : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "../base/define.glsl"
-#include "../base/light.glsl"
-#include "../base/geometrytypes.glsl"
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-struct RayPayload {
-	vec3 color;
-	float dist;
-	vec3 normal;
-	int effectFlag;
-};
+//#include "../base/define.glsl"
+//#include "../base/light.glsl"
+//#include "../base/geometrytypes.glsl"
+#include "../base/3dgs.glsl"
+
+/*** 3dgrt style ***/
+
+void initializeRayPayload(RayPayload rayPayload){
+	for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+		rayPayload.hits[i].particleId = INVALID_PARTICLE_ID;
+		rayPayload.hits[i].dist = INFINITE_DISTANCE;
+	}
+}
+
+/*** playground style ***/
+//struct RayData{
+//	vec3 radiance;
+//	float density;
+//	vec3 normal;
+//	float hitDistance;
+//	float rayLastHitDistance;
+//	uint hitCount;
+//
+//	void initialize(){
+//		radiance = vec3(0.0f);
+//		density = 0.0f;
+//		normal = vec3(0.0f);
+//		hitDistance = 0.0f;
+//		rayLastHitDistance = 0.0f;
+//		hitCount = 0;
+//	}
+//}
+
+/***** 3DGS *****/
 layout(location = 0) rayPayloadEXT RayPayload rayPayload;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
 
-// Initialized with default value. Appropriate value will be transfered from application.
-layout(constant_id = 1) const uint numOfDynamicLights = 1;
-
 layout(binding = 2, set = 0) uniform uniformBuffer
 {
 	mat4 viewInverse;
 	mat4 projInverse;
-	Light lights[numOfDynamicLights];
+//	Light lights[numOfDynamicLights];
 } ubo;
 
-layout(binding = 6, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
+// gas->aabb
+Param params;
+layout(std140, binding = 5, set = 0) buffer ParticleDensitieBuffer {
+	ParticleDensity d[];
+} particleDensities;
+layout(std140, binding = 6, set = 0) buffer ParticleSphCoefficients {
+	float c[];
+} particleSphCoefficients;
+layout(std140, binding = 7, set = 0) buffer ParticleVisibility {
+	float v[];
+} particleVisibility;
 
-void main() 
+/***** 3DGS Functions *****/
+//void traceVolumetricGS(vec3 rayOrigin, vec3 rayDirection, float tmin, float tmax){
+//	//check image range (why here?)
+//	const vec2 idx = vec2(gl_LaunchIDEXT.xy);
+//	if(idx.x > frameBounds.x) || (idx.y > frameBounds.y)){
+//		return;
+//	}
+//}
+//
+//vec4 traceGaussians(vec3 rayOrigin, vec3 rayDirection, const float tmin, const float tmax){
+//	traceVolumetricGS(rayOrigin, rayDirection, tmin, tmax);
+//
+//	return accumulated_radiance;
+//}
+
+vec2 intersectAABB(const Aabb aabb, vec3 rayOri, vec3 rayDir){
+	vec3 t0 = vec3(aabb.minX, aabb.minY, aabb.minZ) - rayOri / rayDir;
+	vec3 t1 = vec3(aabb.maxX, aabb.maxY, aabb.maxZ) - rayOri / rayDir;
+	vec3 tmax = vec3(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));
+	vec3 tmin = vec3(min(t0.x, t1.x), min(t0.y, t1.y), min(t0.z, t1.z));
+	float maxOfMin = max(0.0f, max(tmin.x, max(tmin.y, tmin.z)));
+	float minOfMax = min(tmax.x, min(tmax.y, tmax.z));
+	return vec2(maxOfMin, minOfMax);
+}
+
+void trace(RayPayload rayPayload, vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
+	initializeRayPayload(rayPayload);
+	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 1, 0, rayOri, tmin, rayDir, tmax, 0);
+}
+
+mat3 quaternionWXYZToMatrix(const vec4 q){
+	const float w = q.x;
+    const float x = q.y;
+    const float y = q.z;
+    const float z = q.w;
+
+    const float xx = x * x;
+    const float yy = y * y;
+    const float zz = z * z;
+    const float xy = x * y;
+    const float xz = x * z;
+    const float yz = y * z;
+    const float wx = w * x;
+    const float wy = w * y;
+    const float wz = w * z;
+
+	return mat3(
+        1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz),       2.0 * (xz + wy),
+        2.0 * (xy + wz),       1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx),
+        2.0 * (xz - wy),       2.0 * (yz + wx),       1.0 - 2.0 * (xx + yy)
+    );
+}
+
+vec3 safe_normalize(vec3 v){
+	const float l = v.x * v.x + v.y * v.y + v.z * v.z;
+	return l > 0.0f ? (v * inversesqrt(l)) : v;
+}
+
+float particleResponse(float grayDist){
+	switch (PARTICLE_KERNEL_DEGREE) {
+    case 8: // Zenzizenzizenzic
+    {
+        float s      = -0.000685871056241f;
+        const float grayDistSq = grayDist * grayDist;
+        return exp(s * grayDistSq * grayDistSq);
+    }
+    case 5: // Quintic
+    {
+        float s = -0.0185185185185f;
+        return exp(s * grayDist * grayDist * sqrt(grayDist));
+    }
+    case 4: // Tesseractic
+    {
+        float s = -0.0555555555556f;
+        return exp(s * grayDist * grayDist);
+    }
+    case 3: // Cubic
+    {
+        float s = -0.166666666667f;
+        return exp(s * grayDist * sqrt(grayDist));
+    }
+    case 1: // Laplacian
+    {
+        float s = -1.5f;
+        return exp(s * sqrt(grayDist));
+    }
+    case 0: // Linear
+    {
+        /* static const */ float s = -0.329630334487f;
+        return max(1.f + s * sqrt(grayDist), 0.f);
+    }
+    default: // Quadratic
+    {
+        float s = -0.5f;
+        return exp(s * grayDist);
+    }
+    }
+}
+
+#if BUFFER_REFERENCE
+void fetchParticleDensity(
+	const uint particleIdx,
+	const uint64_t densityBufferDeviceAddress,
+	out vec3 particlePosition,
+	out vec3 particleScale,
+	out mat3 particleRotation,
+	out float particleDensity){
+	const ParticleDensity particleData = Densities[densityBufferDeviceAddress].d[nonuniformEXT(particleIdx)];
+
+	particlePosition = particleData.position;
+	particleScale = particleData.scale;
+	particleRotation = quaternionWXYZToMatrix(particleData.quaternion);
+	particleDensity = particleData.density;
+}
+
+void fetchParticleSphCoefficients(
+	const uint particleIdx,
+	const float sphCoefficientBufferDeviceAddress,
+	out vec3 sphCoefficients[]) {
+	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;
+	for(unsigned int i = 0; i < SPH_MAX_NUM_COEFFS; i++){
+		const int offset = i * 3;
+		sphCoefficients[i] = vec3(
+			particlesSphCoefficients[particleOffset + offset + 0],
+            particlesSphCoefficients[particleOffset + offset + 1],
+            particlesSphCoefficients[particleOffset + offset + 2]);
+	}
+}
+#else
+void fetchParticleDensity(
+	const uint particleIdx,
+	out vec3 particlePosition,
+	out vec3 particleScale,
+	out mat3 particleRotation,
+	out float particleDensity){
+	const ParticleDensity particleData = particleDensities.d[nonuniformEXT(particleIdx)];
+
+	particlePosition = particleData.position;
+	particleScale = particleData.scale;
+	particleRotation = quaternionWXYZToMatrix(particleData.quaternion);
+	particleDensity = particleData.density;
+}
+
+void fetchParticleSphCoefficients(
+	const uint particleIdx,
+	out vec3 sphCoefficients[SPH_MAX_NUM_COEFFS]) {
+	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;
+	for(uint i = 0; i < SPH_MAX_NUM_COEFFS; i++){
+		uint offset = i * 3;
+		sphCoefficients[i] = vec3(
+			particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 0)],
+            particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 1)],
+            particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 2)]);
+	}
+}
+#endif
+
+vec3 radianceFromSpH(int deg, const vec3 sphCoefficients[SPH_MAX_NUM_COEFFS], const vec3 rdir, bool clamped){
+	vec3 rad = SH_C0 * sphCoefficients[0];
+	if(deg > 0){
+		const vec3 dir = rdir;
+
+		const float x = dir.x;
+		const float y = dir.y;
+		const float z = dir.z;
+		rad = rad - SH_C1 * y * sphCoefficients[1] + SH_C1 * z * sphCoefficients[2] - SH_C1 * x * sphCoefficients[3];
+
+		if (deg > 1){
+			const float xx = x * x, yy = y * y, zz = z * z;
+            const float xy = x * y, yz = y * z, xz = x * z;
+            rad = rad + SH_C2[0] * xy * sphCoefficients[4] + SH_C2[1] * yz * sphCoefficients[5] +
+                  SH_C2[2] * (2.0f * zz - xx - yy) * sphCoefficients[6] +
+                  SH_C2[3] * xz * sphCoefficients[7] + SH_C2[4] * (xx - yy) * sphCoefficients[8];
+			if (deg > 2) {
+                rad = rad + SH_C3[0] * y * (3.0f * xx - yy) * sphCoefficients[9] +
+                      SH_C3[1] * xy * z * sphCoefficients[10] +
+                      SH_C3[2] * y * (4.0f * zz - xx - yy) * sphCoefficients[11] +
+                      SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sphCoefficients[12] +
+                      SH_C3[4] * x * (4.0f * zz - xx - yy) * sphCoefficients[13] +
+                      SH_C3[5] * z * (xx - yy) * sphCoefficients[14] +
+                      SH_C3[6] * x * (xx - 3.0f * yy) * sphCoefficients[15];
+			}
+		}
+	}
+	rad += 0.5f;
+	return clamped ? max(rad, vec3(0.0f)) : rad;
+}
+
+bool processHit(
+	vec3 rayOrigin,
+	vec3 rayDirection,
+	uint particleIdx,
+//#if BUFFER_REFERENCE
+//	const uint64_t densityBufferDeviceAddress,
+//	const uint64_t sphCoefficientBufferDeviceAddress,
+//#endif
+	float minParticleKernelDensity,
+	float minParticleAlpha,
+	int sphEvalDegree,
+	inout float transmittance,
+	inout vec3 radiance,
+	inout float depth
+#if ENABLE_NORMALS
+	,inout vec3 normal
+#endif
+	){
+	vec3 particlePosition;
+	vec3 particleScale;
+	mat3 particleRotation;
+	float particleDensity;
+	
+	fetchParticleDensity(
+        particleIdx,
+#if BUFFER_REFERENCE
+        densityBufferDeviceAddress,
+#endif
+        particlePosition,
+        particleScale,
+        particleRotation,
+        particleDensity);
+
+	const vec3 giscl   = vec3(1 / particleScale.x, 1 / particleScale.y, 1 / particleScale.z);
+    const vec3 gposc   = (rayOrigin - particlePosition);
+    const vec3 gposcr  = (gposc * particleRotation);
+    const vec3 gro     = giscl * gposcr;
+    const vec3 rayDirR = rayDirection * particleRotation;
+    const vec3 grdu    = giscl * rayDirR;
+    const vec3 grd     = safe_normalize(grdu);
+
+	const vec3 gcrod = SURFEL_PRIMITIVE ? gro + grd * -gro.z / grd.z : cross(grd, gro);
+	const float grayDist = dot(gcrod, gcrod);
+
+	const float gres = particleResponse(grayDist);
+	const float galpha = min(0.99f, gres * particleDensity);
+
+	const bool acceptHit = (gres > minParticleKernelDensity) && (galpha > minParticleAlpha);
+	if (acceptHit) {
+        const float weight = galpha * (transmittance);
+
+		const vec3 grds = particleScale * grd * (SURFEL_PRIMITIVE ? -gro.z / grd.z : dot(grd, -1 * gro));
+		const float hitT = sqrt(dot(grds, grds));
+
+		vec3 sphCoefficients[SPH_MAX_NUM_COEFFS];
+		fetchParticleSphCoefficients(
+			particleIdx,
+#if BUFFER_REFERENCE
+			sphCoefficientBufferDeviceAddress,
+#endif
+			sphCoefficients);
+		const vec3 grad = radianceFromSpH(sphEvalDegree, sphCoefficients, rayDirection, true);
+
+		radiance += grad * weight;
+		transmittance *= (1 - galpha);
+		depth += hitT * weight;
+
+#if ENABLE_NORMALS
+		const float ellispoidSqRadius = 9.0f;
+		const vec3 particleScaleRotated = (particleRotation * particleScale);
+		normal += weight * (SURFEL_PRIMITIVE ? vec3(0, 0, (grd.z > 0 ? 1 : -1) * particleScaleRotated.z) : safe_normalize((gro + grd * (dot(grd, -1 * gro) - sqrt(ellispoidSqRadius - grayDist))) * particleScaleRotated));
+#endif
+	}
+
+	return acceptHit;
+}
+
+void main()
 {
+	// set ray origin, direction
 	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);	// pixel position
 	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);	// pixel position in WdC
 	vec2 d = inUV * 2.0 - 1.0;	// pixel position in NDC
-
-	vec4 origin = ubo.viewInverse[3];
+	vec4 rayOrigin = ubo.viewInverse[3];
 	vec4 target = ubo.projInverse * vec4(d.x, d.y, 1.0f, 1.0f) ;	// (pixel position in EC) / Wc
-	vec4 direction = normalize(ubo.viewInverse * vec4(normalize(target.xyz), 0.0f));
+	vec4 rayDirection = normalize(ubo.viewInverse * vec4(target.xyz, 0.0f));
 
-	float tmax = 10000.0f;
+	/*** 3dgrt style ***/
+	vec3 rayRadiance = vec3(0.0f);
+	float rayTransmittance = 1.0f;
+	float rayHitDistance = 0.0f;
 
-	const int iterations = ITERATIONS;
-
-	vec3 finalColor = vec3(0.0f);
-	float iorPrev = 1.0f;
-	float product = 1.0f;
-	for (int iter = 0; iter < ITERATIONS; iter++) {
-#if ANY_HIT
-		traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, origin.xyz, RAY_TMIN, direction.xyz, tmax, 0);
-#else
-		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, RAY_TMIN, direction.xyz, tmax, 0);
+#ifdef ENABLE_NORMALS
+	vec3 rayNormal = vec3(0.0f);
 #endif
-		finalColor += product * rayPayload.color;
+#ifdef ENABLE_HIT_COUNTS
+	uint rayHitsCount = 0;
+#endif
 
-		if (rayPayload.dist < 0.0f) {	// from miss shader
+	vec2 minMaxT = intersectAABB(params.aabb, rayOrigin.xyz, rayDirection.xyz);
+	const float epsT = EPS_T;
+
+	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
+
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > params.minTransmittance)){
+		trace(rayPayload, rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
+		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
 			break;
-		} 
-		else if (rayPayload.effectFlag > 0) {	// from chit shader & reflector 
-			vec3 normal_reflect = rayPayload.normal;
-
-			const vec4 hitPos = origin + direction * rayPayload.dist;
-			origin.xyz = hitPos.xyz + normal_reflect * RAY_TMIN;
-			direction.xyz = reflect(direction.xyz, normal_reflect);
-
-			GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(rayPayload.effectFlag - 1)];
-			product *= geometryNode.reflectance;
-		} 
-		else if (rayPayload.effectFlag < 0) {	// from chit shader & refractor
-			vec3 normal_refract = rayPayload.normal;
-
-			GeometryNode geometryNode = geometryNodes.nodes[nonuniformEXT(-1 - rayPayload.effectFlag)];
-
-			if (dot(direction.xyz, normal_refract) > 0.0f) {	// when ray goes out from the sphere.
-				normal_refract *= -1.0f;
-				iorPrev = geometryNode.ior;
-				geometryNode.ior = 1.0f;
-			}
-
-			const vec4 hitPos = origin + direction * rayPayload.dist;
-			origin.xyz = hitPos.xyz - normal_refract * RAY_TMIN;
-			direction.xyz = refract(direction.xyz, normal_refract, iorPrev / geometryNode.ior);
-			product *= geometryNode.refractance;
 		}
-		else {	// from chit shader & not reflector & not refractor
+		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+			const RayHit rayHit = rayPayload.hits[i];
 
-			break;
+			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > params.minTransmittance)){
+				const bool acceptedHit = processHit(
+					rayOrigin.xyz,
+					rayDirection.xyz,
+					rayHit.particleId,
+#if BUFFER_REFERENCE
+					params.densityBufferDeviceAddress,
+					params.sphCoefficientBufferDeviceAddress,
+					params.visibilityBufferDeviceAddress,
+#endif
+					params.hitMinGaussianResponse,
+					params.alphaMinThreshold,
+					int(params.sphEvalDegree),
+					rayTransmittance,
+					rayRadiance,
+					rayHitDistance
+#if ENABLE_NORMALS
+					,rayNormal
+#endif
+				);
+
+				if(acceptedHit){
+					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1;
+				}
+
+				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
+
+#ifdef ENABLE_HIT_COUNTS
+				rayHitsCount += acceptedHit ? 1 : 0;
+#endif
+			}
 		}
 	}
 
-	finalColor = pow(finalColor, vec3(1.0f / 2.2f));	// Gamma correction
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(finalColor, 1.0f));	
+
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
+
+
+
+	/*** playground style ***/
+//	vec4 volumetricRadDns = traceGaussians(rayOrigin, rayDirection, EPS_T, ray_t_max);
 }

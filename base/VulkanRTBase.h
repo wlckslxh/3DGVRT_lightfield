@@ -86,11 +86,16 @@ struct BaseFrameObject
 	VkSemaphore presentCompleteSemaphore;
 	uint32_t imageIndex;
 	vks::Buffer uniformBuffer;
-	vks::Buffer uniformBufferStaticLight;
+	vks::Buffer uniformBufferStatic;
 	VkQueryPool timeStampQueryPool;
 	std::vector<uint64_t> timeStamps;
 	vks::Buffer vertexBuffer;
 	vks::Buffer indexBuffer;
+
+	/* 3DGRT */
+	vks::Buffer particleDensities;			//read only
+	vks::Buffer particleSphCoefficients;	//read only
+	vks::Buffer particleVisibility;			//read, write
 };
 
 class VulkanRTBase
