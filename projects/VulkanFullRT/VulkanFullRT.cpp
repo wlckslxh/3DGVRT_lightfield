@@ -841,7 +841,7 @@ public:
 
 		for (auto& frame : frameObjects)
 		{
-			VkDescriptorSet& descriptorSet = frame.descriptorSet;
+			VkDescriptorSet& descriptorSet = frame.computeDescriptorSet;
 			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &compute.descriptorSetLayout, 1);
 			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet));
 
@@ -970,9 +970,9 @@ public:
 		VK_CHECK_RESULT(vkBeginCommandBuffer(frame.computeCommandBuffer, &cmdBufInfo));
 
 		vkCmdBindPipeline(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline);
-		vkCmdBindDescriptorSets(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &frame.computeDescriptorSet, 0, 0);
+		vkCmdBindDescriptorSets(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &frame.computeDescriptorSet, 0, 0);
 
-		uint32_t groupCountX = NUM_OF_GAUSSIANS;	// ?
+		uint32_t groupCountX = NUM_OF_GAUSSIANS;
 		vkCmdDispatch(frame.computeCommandBuffer, groupCountX, 1, 1);	
 
 		VK_CHECK_RESULT(vkEndCommandBuffer(frame.computeCommandBuffer));
@@ -1357,6 +1357,16 @@ public:
 		createComputePipeline();
 		createRayTracingPipeline();
 		createShaderBindingTables();
+
+		// compute pipeline
+		for (FrameObject& frame : frameObjects) {
+			buildComputeCommandBuffer(frame);
+
+			VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+			computeSubmitInfo.commandBufferCount = 1;
+			computeSubmitInfo.pCommandBuffers = &frame.computeCommandBuffer;
+			VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
+		}
 
 		prepared = true;
 	}
