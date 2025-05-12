@@ -10,6 +10,7 @@
 #include "VulkanRTCommon.h"
 #include "VulkanUtils.h"
 #include "SimpleUtils.h"
+#include "Vulkan3DGRTModel.h"
 
 #define DIR_PATH "VulkanFullRT/"
 
@@ -65,6 +66,7 @@ public:
 
 
 	vkglTF::Model scene;
+	vk3DGRT::Model gModel;
 
 	struct FrameObject : public BaseFrameObject {
 #if !DIRECTRENDER
@@ -992,6 +994,8 @@ public:
 		vkglTF::memoryPropertyFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 		scene.loadFromFile(getAssetPath() + ASSET_PATH, vulkanDevice, graphicsQueue, glTFLoadingFlags);
+		//gModel.load3DGRTObject(getAssetPath() + "3DGRTModels/lego/ckpt_last.pt", vulkanDevice);
+		gModel.load3DGRTModel(getAssetPath() + "3DGRTModels/lego/export_last.ply", vulkanDevice);
 
 		// Cubemap texture
 		loadCubemap(getAssetPath() + CUBEMAP_TEXTURE_PATH, VK_FORMAT_R8G8B8A8_UNORM);
