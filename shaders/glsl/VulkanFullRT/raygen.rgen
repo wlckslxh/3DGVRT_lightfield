@@ -93,6 +93,7 @@ void trace(RayPayload rayPayload, vec3 rayOri, vec3 rayDir, const float tmin, co
 	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 1, 0, rayOri, tmin, rayDir, tmax, 0);
 }
 
+// 파티클이 주변에 주는 영향 설정
 float particleResponse(float grayDist){
 	switch (PARTICLE_KERNEL_DEGREE) {
     case 8: // Zenzizenzizenzic
@@ -178,10 +179,11 @@ void fetchParticleDensity(
 	particleDensity = particleData.density;
 }
 
+// load spherical harmonics coefficient
 void fetchParticleSphCoefficients(
 	const uint particleIdx,
 	out vec3 sphCoefficients[SPH_MAX_NUM_COEFFS]) {
-	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;
+	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;	// 3 : RGB
 	for(uint i = 0; i < SPH_MAX_NUM_COEFFS; i++){
 		uint offset = i * 3;
 		sphCoefficients[i] = vec3(
@@ -192,6 +194,10 @@ void fetchParticleSphCoefficients(
 }
 #endif
 
+// calc spherical harmonics with coefficients
+// not a special algorithm
+// algorithm from spherical harmonics
+// "parametric radiance function" in paper
 vec3 radianceFromSpH(int deg, const vec3 sphCoefficients[SPH_MAX_NUM_COEFFS], const vec3 rdir, bool clamped){
 	vec3 rad = SH_C0 * sphCoefficients[0];
 	if(deg > 0){
@@ -227,10 +233,10 @@ bool processHit(
 	vec3 rayOrigin,
 	vec3 rayDirection,
 	uint particleIdx,
-//#if BUFFER_REFERENCE
-//	const uint64_t densityBufferDeviceAddress,
-//	const uint64_t sphCoefficientBufferDeviceAddress,
-//#endif
+#if BUFFER_REFERENCE
+	const uint64_t densityBufferDeviceAddress,
+	const uint64_t sphCoefficientBufferDeviceAddress,
+#endif
 	float minParticleKernelDensity,
 	float minParticleAlpha,
 	int sphEvalDegree,

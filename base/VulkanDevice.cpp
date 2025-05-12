@@ -661,6 +661,7 @@ namespace vks
 		throw std::runtime_error("Could not find a matching depth format");
 	}
 
+	// usage example : SamsungVulkanRT project - commit : d726dbef7d8b32105dd4bff945b73df983db3c90
 	void VulkanDevice::createAndCopyToDeviceBuffer(void* data, VkBuffer& buffer, VkDeviceMemory& memory, size_t bufferSize, VkQueue queue, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryFlags) {
 		struct StagingBuffer {
 			VkBuffer buffer;
