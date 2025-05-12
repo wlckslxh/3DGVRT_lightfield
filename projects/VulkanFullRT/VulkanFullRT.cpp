@@ -91,6 +91,8 @@ public:
 #endif
 		VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
 		VkDescriptorSet computeDescriptorSet{ VK_NULL_HANDLE };
+
+		VkCommandBuffer computeCommandBuffer{ VK_NULL_HANDLE };
 	};
 
 	std::vector<FrameObject> frameObjects;
@@ -147,6 +149,7 @@ public:
 		for (FrameObject& frame : frameObjects)
 		{
 			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &frame.commandBuffer));
+			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &frame.computeCommandBuffer));
 		}
 	}
 
@@ -155,6 +158,7 @@ public:
 		for (FrameObject& frame : frameObjects)
 		{
 			vkFreeCommandBuffers(device, cmdPool, 1, &frame.commandBuffer);
+			vkFreeCommandBuffers(device, cmdPool, 1, &frame.computeCommandBuffer);
 		}
 	}
 
@@ -710,6 +714,21 @@ public:
 		resized = false;
 	}
 
+	void buildComputeCommandBuffer(FrameObject& frame)
+	{
+		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+
+		VK_CHECK_RESULT(vkBeginCommandBuffer(frame.computeCommandBuffer, &cmdBufInfo));
+
+		vkCmdBindPipeline(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline);
+		vkCmdBindDescriptorSets(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &frame.computeDescriptorSet, 0, 0);
+
+		uint32_t groupCountX = NUM_OF_GAUSSIANS;	// ?
+		vkCmdDispatch(frame.computeCommandBuffer, groupCountX, 1, 1);	
+
+		VK_CHECK_RESULT(vkEndCommandBuffer(frame.computeCommandBuffer));
+	}
+
 	/*
 		Command buffer record
 	*/
@@ -952,15 +971,10 @@ public:
 		physicalDeviceHostQueryResetFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES_EXT;
 		physicalDeviceHostQueryResetFeatures.hostQueryReset = VK_TRUE;
 
-		// Enable feature required for ray query.
-		enabledRayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-		enabledRayQueryFeatures.rayQuery = VK_TRUE;
-		enabledRayQueryFeatures.pNext = &physicalDeviceHostQueryResetFeatures;
-
 		// Enable features required for ray tracing using feature chaining via pNext		
 		enabledBufferDeviceAddresFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
 		enabledBufferDeviceAddresFeatures.bufferDeviceAddress = VK_TRUE;
-		enabledBufferDeviceAddresFeatures.pNext = &enabledRayQueryFeatures;
+		enabledBufferDeviceAddresFeatures.pNext = &physicalDeviceHostQueryResetFeatures;
 
 		enabledRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
 		enabledRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
@@ -1060,6 +1074,7 @@ public:
 		createTopLevelAccelerationStructure();
 
 		createDescriptorSets();
+		createComputePipeline();
 		createRayTracingPipeline();
 		createShaderBindingTables();
 

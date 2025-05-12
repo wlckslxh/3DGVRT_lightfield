@@ -27,6 +27,8 @@
 
 #define USE_ANIMATION 0 // 0 is Default
 
+#define NUM_OF_GAUSSIANS 0	// ?
+
 #if ASSET == 0
 #define ASSET_PATH "models/suntemple_simple/SunTemple.gltf"
 
