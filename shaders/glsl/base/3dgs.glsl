@@ -5,7 +5,7 @@
  *
  */
 
-#define NUM_OF_GAUSSIANS 256 // This macro should be managed with Define.h
+#define NUM_OF_GAUSSIANS 1024 // This macro should be managed with Define.h
 
 #define EPS_T 1e-9
 #define MAX_HIT_PER_TRACE 16

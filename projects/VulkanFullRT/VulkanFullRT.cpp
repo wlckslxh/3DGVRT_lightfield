@@ -98,10 +98,11 @@ public:
 		StorageImage storageImage;
 #endif
 		VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
-		VkDescriptorSet computeDescriptorSet{ VK_NULL_HANDLE };
-		vks::Buffer computeUniformBuffer;
-		VkCommandBuffer computeCommandBuffer{ VK_NULL_HANDLE };
 	};
+
+	VkDescriptorSet computeDescriptorSet{ VK_NULL_HANDLE };
+	vks::Buffer computeUniformBuffer;
+	VkCommandBuffer computeCommandBuffer{ VK_NULL_HANDLE };
 
 	std::vector<FrameObject> frameObjects;
 	std::vector<BaseFrameObject*> pBaseFrameObjects;
@@ -138,7 +139,6 @@ public:
 #endif
 				frame.uniformBuffer.destroy();
 				frame.uniformBufferStatic.destroy();
-				frame.computeUniformBuffer.destroy();
 
 				vkDestroyQueryPool(device, frame.timeStampQueryPool, nullptr);
 
@@ -147,6 +147,7 @@ public:
 				frame.particleVisibility.destroy();
 			}
 
+			computeUniformBuffer.destroy();
 			geometryNodesBuffer.destroy();
 			deleteAccelerationStructure(bottomLevelAS);
 			deleteAccelerationStructure(topLevelAS);
@@ -165,8 +166,8 @@ public:
 		for (FrameObject& frame : frameObjects)
 		{
 			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &frame.commandBuffer));
-			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &frame.computeCommandBuffer));
 		}
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &computeCommandBuffer));
 	}
 
 	virtual void destroyCommandBuffers()
@@ -174,9 +175,10 @@ public:
 		for (FrameObject& frame : frameObjects)
 		{
 			vkFreeCommandBuffers(device, cmdPool, 1, &frame.commandBuffer);
-			vkFreeCommandBuffers(device, cmdPool, 1, &frame.computeCommandBuffer);
 		}
+		vkFreeCommandBuffers(device, cmdPool, 1, &computeCommandBuffer);
 	}
+
 
 	void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo)
 	{
@@ -480,14 +482,14 @@ public:
 		VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo;
 		VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo;
 
-		uint32_t primitiveCount = gModel.splatSet.size() * 20; 	// TODO: change hard coded representation
+		uint32_t primitiveCount = gModel.indices.count / 3;
 		VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
 
-		vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(gModel.vertices.buffer);
-		indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(gModel.indices.buffer);
-		transformBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(transformBuffer.buffer);
+		vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(gModel.vertices.storageBuffer.buffer);
+		indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(gModel.indices.storageBuffer.buffer);
+		transformBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(transformBuffer3DGRT.buffer);
 
 		geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 		geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
@@ -805,72 +807,17 @@ public:
 	void createDescriptorSets()
 	{
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			// compute pipeline
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6 * swapChain.imageCount), // vertices, triangles, position, rotation, scale, density
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * swapChain.imageCount),
-
 			// ray tracing pipeline
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount * 2); // compute pipeline + ray tracing pipeline
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // compute pipeline + ray tracing pipeline
 
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));	// descriptor pool
-
-		// for compute pipeline begin
-		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-			// Binding 0: Vertices
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
-			// Binding 1: Triangles
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
-			// Binding 2: Position
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
-			// Binding 3: Rotation
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
-			// Binding 4: Scale
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
-			// Binding 5: Density
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
-			// Binding 6: Uniform Buffer
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
-		};
-
-		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &compute.descriptorSetLayout));
-
-		for (auto& frame : frameObjects)
-		{
-			VkDescriptorSet& descriptorSet = frame.computeDescriptorSet;
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &compute.descriptorSetLayout, 1);
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet));
-
-			// temporal use
-			VkDescriptorBufferInfo dummyDescriptor{};
-
-			std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
-				// Binding 0: Vertices
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, &dummyDescriptor),
-				// Binding 1: Triangles
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, &dummyDescriptor),
-				// Binding 2: Position
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, &dummyDescriptor),
-				// Binding 3: Rotation
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &dummyDescriptor),
-				// Binding 4: Scale
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &dummyDescriptor),
-				// Binding 5: Vertices
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &dummyDescriptor),
-				// Binding 6: Uniform Buffer 
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 6, &frame.computeUniformBuffer.descriptor),
-			};
-
-			vkUpdateDescriptorSets(device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
-		}
-		// for compute pipeline end
 		
 		// for ray tracing pipeline begin
-		setLayoutBindings = {
+		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			// Binding 0: Top level acceleration structure
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0),
 			// Binding 1: Ray tracing result image
@@ -893,7 +840,7 @@ public:
 				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 6),
 		};
 
-		descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
 		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayout));
 
 		for (auto& frame : frameObjects)
@@ -943,6 +890,66 @@ public:
 	}
 
 	/*
+		Create the descriptor sets used for the compute pipeline
+	*/
+	void createComputeDescriptorSets()
+	{
+		std::vector<VkDescriptorPoolSize> poolSizes = {
+			// compute pipeline
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6), // vertices, triangles, position, rotation, scale, density
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
+		};
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 1); // compute pipeline + ray tracing pipeline
+
+		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));	// descriptor pool
+
+		// for compute pipeline begin
+		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+			// Binding 0: Vertices
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			// Binding 1: Triangles
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			// Binding 2: Position
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			// Binding 3: Rotation
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+			// Binding 4: Scale
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			// Binding 5: Density
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+			// Binding 6: Uniform Buffer
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+		};
+
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &compute.descriptorSetLayout));
+
+		VkDescriptorSet& descriptorSet = computeDescriptorSet;
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &compute.descriptorSetLayout, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet));
+
+		std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
+			// Binding 0: Vertices
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, &gModel.vertices.storageBuffer.descriptor),
+			// Binding 1: Triangles
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, &gModel.indices.storageBuffer.descriptor),
+			// Binding 2: Position
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, &gModel.positions.storageBuffer.descriptor),
+			// Binding 3: Rotation
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &gModel.rotations.storageBuffer.descriptor),
+			// Binding 4: Scale
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &gModel.scales.storageBuffer.descriptor),
+			// Binding 5: Density
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &gModel.densities.storageBuffer.descriptor),
+			// Binding 6: Uniform Buffer 
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 6, &computeUniformBuffer.descriptor),
+		};
+
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
+		// for compute pipeline end
+	}
+
+	/*
 		If the window has been resized, we need to recreate the storage image and it's descriptor
 	*/
 	void handleResize()
@@ -963,19 +970,19 @@ public:
 		resized = false;
 	}
 
-	void buildComputeCommandBuffer(FrameObject& frame)
+	void buildComputeCommandBuffer()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(frame.computeCommandBuffer, &cmdBufInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(computeCommandBuffer, &cmdBufInfo));
 
-		vkCmdBindPipeline(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline);
-		vkCmdBindDescriptorSets(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &frame.computeDescriptorSet, 0, 0);
+		vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline);
+		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &computeDescriptorSet, 0, 0);
 
 		uint32_t groupCountX = NUM_OF_GAUSSIANS;
-		vkCmdDispatch(frame.computeCommandBuffer, groupCountX, 1, 1);	
+		vkCmdDispatch(computeCommandBuffer, gModel.splatSet.size() / groupCountX + groupCountX - 1, 1, 1);	
 
-		VK_CHECK_RESULT(vkEndCommandBuffer(frame.computeCommandBuffer));
+		VK_CHECK_RESULT(vkEndCommandBuffer(computeCommandBuffer));
 	}
 
 	/*
@@ -1213,7 +1220,7 @@ public:
 		memcpy(currentFrame.uniformBuffer.mapped, &uniformData, sizeof(uniformData));
 	}
 
-	void updateComputeUniformBuffer(FrameObject& currentFrame)
+	void updateComputeUniformBuffer()
 	{
 		computeUniformData.numOfGaussians = NUM_OF_GAUSSIANS;
 		computeUniformData.kernelMinResponse = 1;	// temporal value
@@ -1234,7 +1241,7 @@ public:
 		copyRegion.srcOffset = 0;
 		copyRegion.dstOffset = 0;
 		copyRegion.size = stagingBuffer.size;
-		vulkanDevice->copyBuffer(&stagingBuffer, &currentFrame.computeUniformBuffer, graphicsQueue, &copyRegion);
+		vulkanDevice->copyBuffer(&stagingBuffer, &computeUniformBuffer, graphicsQueue, &copyRegion);
 
 		vkDestroyBuffer(vulkanDevice->logicalDevice, stagingBuffer.buffer, nullptr);
 		vkFreeMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, nullptr);
@@ -1287,7 +1294,7 @@ public:
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::PreTransformVertices;
 		vkglTF::bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
-		scene.loadFromFile(getAssetPath() + ASSET_PATH, vulkanDevice, graphicsQueue, glTFLoadingFlags);
+		//scene.loadFromFile(getAssetPath() + ASSET_PATH, vulkanDevice, graphicsQueue, glTFLoadingFlags);
 		//gModel.load3DGRTObject(getAssetPath() + "3DGRTModels/lego/ckpt_last.pt", vulkanDevice);
 		gModel.load3DGRTModel(getAssetPath() + "3DGRTModels/lego/export_last.ply", vulkanDevice);
 
@@ -1312,6 +1319,24 @@ public:
 		}
 
 		return true;
+	}
+
+	void computeGaussianEnclosingIcosaHedron()
+	{
+		// compute pipeline
+		buildComputeCommandBuffer();
+
+		VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+		computeSubmitInfo.commandBufferCount = 1;
+		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
+		VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
+
+		vkDeviceWaitIdle(device);
+
+		//gModel.positions.storageBuffer.destroy();
+		//gModel.rotations.storageBuffer.destroy();
+		//gModel.scales.storageBuffer.destroy();
+		//gModel.densities.storageBuffer.destroy();
 	}
 
 	void prepare()
@@ -1341,32 +1366,31 @@ public:
 			// Uniform buffers
 			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBuffer, sizeof(uniformData), &uniformData));
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStaticLight), nullptr));
-			vks::utils::updateLightStaticInfo(uniformDataStaticLight, frame, scene, vulkanDevice, graphicsQueue);
-			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.computeUniformBuffer, sizeof(vks::utils::ComputeUniformData), nullptr));
-			updateComputeUniformBuffer(frame);
+			//vks::utils::updateLightStaticInfo(uniformDataStaticLight, frame, scene, vulkanDevice, graphicsQueue);
 
 			// Time Stamp for measuring performance.
 			setupTimeStampQueries(frame, timeStampCountPerFrame);
 		}
 
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &computeUniformBuffer, sizeof(vks::utils::ComputeUniformData), nullptr));
+		updateComputeUniformBuffer();
+
+		// allocate device memory for vertex/index buffer
+		gModel.allocateAttributeBuffers(vulkanDevice, graphicsQueue);
+		createComputeDescriptorSets();
+		createComputePipeline();
+		computeGaussianEnclosingIcosaHedron();
+
 		// Create the acceleration structures used to render the ray traced scene
-		createBottomLevelAccelerationStructure();
-		createTopLevelAccelerationStructure();
+		//createBottomLevelAccelerationStructure();
+		//createTopLevelAccelerationStructure();
+
+		createBottomLevelAccelerationStructure3DGRT();
+		createTopLevelAccelerationStructure3DGRT();
 
 		createDescriptorSets();
-		createComputePipeline();
 		createRayTracingPipeline();
 		createShaderBindingTables();
-
-		// compute pipeline
-		for (FrameObject& frame : frameObjects) {
-			buildComputeCommandBuffer(frame);
-
-			VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-			computeSubmitInfo.commandBufferCount = 1;
-			computeSubmitInfo.pCommandBuffers = &frame.computeCommandBuffer;
-			VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
-		}
 
 		prepared = true;
 	}
@@ -1393,7 +1417,7 @@ public:
 		timer = 0.f;
 #endif
 
-		vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
+		//vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
 		updateUniformBuffer();
 
 		draw();

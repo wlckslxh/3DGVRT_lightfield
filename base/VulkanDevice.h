@@ -97,6 +97,7 @@ struct VulkanDevice
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool begin = false);
 	// extended version for using flags of command buffer
 	void copyBuffer(vks::Buffer* src, vks::Buffer* dst, VkQueue queue, VkCommandBufferUsageFlagBits flags, VkBufferCopy* copyRegion = nullptr);
+	void copyBuffer(void* data, vks::Buffer* dst, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool pool, bool begin, VkCommandBufferUsageFlagBits flags);
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool begin, VkCommandBufferUsageFlagBits flags);
 
