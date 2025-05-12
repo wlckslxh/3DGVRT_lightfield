@@ -56,7 +56,7 @@ namespace vkglTF
 
 	extern VkDescriptorSetLayout descriptorSetLayoutImage;
 	extern VkDescriptorSetLayout descriptorSetLayoutUbo;
-	extern VkMemoryPropertyFlags memoryPropertyFlags;
+	extern VkMemoryPropertyFlags bufferUsageFlags;
 	extern uint32_t descriptorBindingFlags;
 
 	struct CompressionFormat {
