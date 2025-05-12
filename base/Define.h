@@ -27,8 +27,6 @@
 
 #define USE_ANIMATION 0 // 0 is Default
 
-#define NUM_OF_GAUSSIANS 0	// ?
-
 #if ASSET == 0
 #define ASSET_PATH "models/suntemple_simple/SunTemple.gltf"
 
@@ -84,3 +82,6 @@
 #define NUM_OF_STATIC_LIGHTS 1	
 #define STATIC_LIGHT_OFFSET 0
 #endif
+
+/*** 3DGS ***/
+#define NUM_OF_GAUSSIANS 256	// This macro should be managed with 3dgs.glsl

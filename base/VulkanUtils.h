@@ -37,6 +37,13 @@ namespace vks {
 			alignas(16) Light lights[NUM_OF_STATIC_LIGHTS];
 		};
 
+		struct ComputeUniformData {
+			alignas(4) unsigned int numOfGaussians;
+			alignas(4) float kernelMinResponse;
+			alignas(4) unsigned int opts;
+			alignas(4) float degree;
+		};
+
 		void updateLightStaticInfo(UniformDataStaticLight& uniformDataStaticLight, BaseFrameObject& currentFrame, vkglTF::Model &scene, vks::VulkanDevice *vulkanDevice, VkQueue graphicsQueue);
 		void updateLightDynamicInfo(UniformData& uniformData, vkglTF::Model& scene, float timer);
 	}
