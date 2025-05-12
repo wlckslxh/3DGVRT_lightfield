@@ -1269,7 +1269,9 @@ public:
 		deviceCreatepNextChain = &physicalDeviceDescriptorIndexingFeatures;
 
 		// Original Features using VkPhysicalDeviceFeature structure.
+#if BUFFER_REFERENCE
 		enabledFeatures.shaderInt64 = VK_TRUE;	// Buffer device address requires the 64-bit integer feature to be enabled
+#endif
 		enabledFeatures.samplerAnisotropy = VK_TRUE;
 	}
 
