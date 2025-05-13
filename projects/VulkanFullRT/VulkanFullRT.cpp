@@ -980,7 +980,7 @@ public:
 		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &computeDescriptorSet, 0, 0);
 
 		uint32_t groupCountX = NUM_OF_GAUSSIANS;
-		vkCmdDispatch(computeCommandBuffer, gModel.splatSet.size() / groupCountX + groupCountX - 1, 1, 1);	
+		vkCmdDispatch(computeCommandBuffer, (gModel.splatSet.size() + groupCountX - 1)/ groupCountX, 1, 1);
 
 		VK_CHECK_RESULT(vkEndCommandBuffer(computeCommandBuffer));
 	}
