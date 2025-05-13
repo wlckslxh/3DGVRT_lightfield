@@ -9,14 +9,14 @@
 
 #define EPS_T 1e-9
 #define MAX_HIT_PER_TRACE 16
-#define SPH_MAX_NUM_COEFFS 16	// "render/3dgrt.yaml - particle_radiance_sph_degree" : (x+1) * (x+1)
+#define SPH_MAX_NUM_COEFFS 16	// "configs/render/3dgrt.yaml - particle_radiance_sph_degree" : (x+1) * (x+1)
 
-#define BUFFER_REFERENCE false
+#define BUFFER_REFERENCE false	// This macro should be managed with Define.h
 
 #define ENABLE_NORMALS false
 #define ENABLE_HIT_COUNTS true
-#define PARTICLE_KERNEL_DEGREE 4 // "render/3dgrt.yaml - particle_kernel_degree" : 4
-#define SURFEL_PRIMITIVE false // "render/3dgrt.yaml - primitive_type" : instances -> false
+#define PARTICLE_KERNEL_DEGREE 4 // "configs/render/3dgrt.yaml - particle_kernel_degree" : 4
+#define SURFEL_PRIMITIVE false // "configs/render/3dgrt.yaml - primitive_type" : instances -> false
 
 #define INVALID_PARTICLE_ID 0xFFFFFFFF
 #define INFINITE_DISTANCE 1e20f
@@ -62,12 +62,12 @@ struct Param {
 	uint64_t densityBufferDeviceAddress;
 	uint64_t sphCoefficientBufferDeviceAddress;
 #endif
-	float particleRadiance;
+	//float particleRadiance; // not used
 	float hitMinGaussianResponse;
 	float alphaMinThreshold;
 	uint sphEvalDegree;
 
-	float particleVisibility;
+	//float particleVisibility;
 };
 
 struct RayHit {
@@ -79,6 +79,8 @@ struct RayPayload {
 	RayHit hits[MAX_HIT_PER_TRACE];
 };
 
+#if BUFFER_REFERENCE
 layout(buffer_reference, scalar) buffer Densities { ParticleDensity d[]; };
 layout(buffer_reference, scalar) buffer SphCoefficients { float sc[]; };
 layout(buffer_reference, scalar) buffer Visibility { float v[]; };
+#endif

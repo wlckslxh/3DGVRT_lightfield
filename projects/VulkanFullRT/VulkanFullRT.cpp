@@ -29,6 +29,15 @@ public:
 		bool sceneExtent;
 	};
 
+	struct ParticleDensity {
+		glm::vec3 position;
+		float density;
+		glm::vec4 quaternion;
+		glm::vec3 scale;
+		float padding;
+	};
+	vks::Buffer particleDensities;	//read only
+
 	// For Triangle Mesh (Should be renamed)
 	AccelerationStructure bottomLevelAS{};
 	AccelerationStructure topLevelAS{};
@@ -142,10 +151,11 @@ public:
 
 				vkDestroyQueryPool(device, frame.timeStampQueryPool, nullptr);
 
-				frame.particleDensities.destroy();
 				frame.particleSphCoefficients.destroy();
 				frame.particleVisibility.destroy();
 			}
+
+			particleDensities.destroy();
 
 			computeUniformBuffer.destroy();
 			geometryNodesBuffer.destroy();
@@ -811,6 +821,7 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * swapChain.imageCount),
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // compute pipeline + ray tracing pipeline
 
@@ -879,7 +890,7 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &frame.uniformBuffer.descriptor),
 				// Binding 3: Uniform data Static
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3, &frame.uniformBufferStatic.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &frame.particleDensities.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &particleDensities.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &frame.particleSphCoefficients.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &frame.particleVisibility.descriptor),
 			};
@@ -898,6 +909,7 @@ public:
 			// compute pipeline
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6), // vertices, triangles, position, rotation, scale, density
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1)	// particle density
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 1); // compute pipeline
 
@@ -919,6 +931,8 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
 			// Binding 6: Uniform Buffer
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+			// Binding 7: Particle density
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 7),
 		};
 
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -943,6 +957,8 @@ public:
 			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &gModel.densities.storageBuffer.descriptor),
 			// Binding 6: Uniform Buffer 
 			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 6, &computeUniformBuffer.descriptor),
+			// Binding 7: Particle density
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &particleDensities.descriptor),
 		};
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
@@ -1276,7 +1292,9 @@ public:
 		deviceCreatepNextChain = &physicalDeviceDescriptorIndexingFeatures;
 
 		// Original Features using VkPhysicalDeviceFeature structure.
+#if BUFFER_REFERENCE
 		enabledFeatures.shaderInt64 = VK_TRUE;	// Buffer device address requires the 64-bit integer feature to be enabled
+#endif
 		enabledFeatures.samplerAnisotropy = VK_TRUE;
 	}
 
@@ -1377,6 +1395,9 @@ public:
 
 		// allocate device memory for vertex/index buffer
 		gModel.allocateAttributeBuffers(vulkanDevice, graphicsQueue);
+		// particle density
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleDensities, sizeof(ParticleDensity), nullptr));
+
 		createComputeDescriptorSets();
 		createComputePipeline();
 		computeGaussianEnclosingIcosaHedron();

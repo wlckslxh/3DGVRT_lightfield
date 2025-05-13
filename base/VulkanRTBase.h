@@ -93,7 +93,6 @@ struct BaseFrameObject
 	vks::Buffer indexBuffer;
 
 	/* 3DGRT */
-	vks::Buffer particleDensities;			//read only
 	vks::Buffer particleSphCoefficients;	//read only
 	vks::Buffer particleVisibility;			//read, write
 };
