@@ -46,6 +46,11 @@ layout (binding = 6) uniform UBO
 	uint opts;
 	float degree;
 } ubo;
+layout(std430, binding = 7) buffer WriteParticleDensity
+{
+	float writeParticleDensity[];
+};
+
 ///////////////////////////////////////////////
 const uint icosaHedronNumVrt = 12;
 const uint icosaHedronNumTri = 20;
@@ -138,5 +143,26 @@ void main()
             gPrimTri[sTriIdx + i * 3 + 1] = index.y;
             gPrimTri[sTriIdx + i * 3 + 2] = index.z;
         }
+
+         /*** particle density ***/
+        uint base = idx * 12;
+
+        // position
+        writeParticleDensity[base + 0] = gPos[idx * 3];
+        writeParticleDensity[base + 1] = gPos[idx * 3 + 1];
+        writeParticleDensity[base + 2] = gPos[idx * 3 + 2];
+        // density
+        writeParticleDensity[base + 3] = gDns[idx];
+        // quaternion
+        writeParticleDensity[base + 4] = gRot[idx * 4];
+        writeParticleDensity[base + 5] = gRot[idx * 4 + 1];
+        writeParticleDensity[base + 6] = gRot[idx * 4 + 2];
+        writeParticleDensity[base + 7] = gRot[idx * 4 + 3];
+        // scale
+        writeParticleDensity[base + 8] = gScl[idx * 3];
+        writeParticleDensity[base + 9] = gScl[idx * 3 + 1];
+        writeParticleDensity[base + 10] = gScl[idx * 3 + 2];
+        // padding
+        writeParticleDensity[base + 11] = 0.0; 
     }
 }

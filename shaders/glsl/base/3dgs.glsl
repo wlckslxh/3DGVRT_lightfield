@@ -79,6 +79,8 @@ struct RayPayload {
 	RayHit hits[MAX_HIT_PER_TRACE];
 };
 
+#if BUFFER_REFERENCE
 layout(buffer_reference, scalar) buffer Densities { ParticleDensity d[]; };
 layout(buffer_reference, scalar) buffer SphCoefficients { float sc[]; };
 layout(buffer_reference, scalar) buffer Visibility { float v[]; };
+#endif
