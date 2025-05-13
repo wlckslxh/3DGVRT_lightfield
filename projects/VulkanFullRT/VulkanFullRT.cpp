@@ -1245,7 +1245,7 @@ public:
 
 	void updateComputeUniformBuffer()
 	{
-		computeUniformData.numOfGaussians = NUM_OF_GAUSSIANS;
+		computeUniformData.numOfGaussians = gModel.splatSet.size();
 		computeUniformData.kernelMinResponse = 1;	// temporal value
 		computeUniformData.opts = 0;				// temporal value
 		computeUniformData.degree = 1;				// temporal value
