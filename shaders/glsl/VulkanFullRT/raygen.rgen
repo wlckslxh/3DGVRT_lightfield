@@ -70,15 +70,17 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 
 // gas->aabb
 //Param params;
+#if !BUFFER_REFERENCE
 layout(std140, binding = 4, set = 0) buffer ParticleDensitieBuffer {
 	ParticleDensity d[];
 } particleDensities;
 layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
 	float c[];
-} particleSphCoefficients;
+} particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]
 layout(std430, binding = 6, set = 0) buffer ParticleVisibility {
 	float v[];
 } particleVisibility;
+#endif
 
 /***** 3DGS Functions *****/
 //void traceVolumetricGS(vec3 rayOrigin, vec3 rayDirection, float tmin, float tmax){

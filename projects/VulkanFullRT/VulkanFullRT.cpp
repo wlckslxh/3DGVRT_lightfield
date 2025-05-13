@@ -17,17 +17,17 @@
 class VulkanFullRT : public VulkanRTCommon
 {
 public:
-	struct MixtureOfGaussians {
-		std::vector<glm::vec3> positions;
-		glm::mat4 rotation;
-		std::vector<glm::vec3> scale;
-		float density;
-		std::vector<glm::vec3> featuresAlbedo;
-		std::vector<float> featuresSpecular;
-		bool nActiveFeatures;
-		bool maxNFeatures;
-		bool sceneExtent;
-	};
+	//struct MixtureOfGaussians {
+	//	std::vector<glm::vec3> positions;
+	//	glm::mat4 rotation;
+	//	std::vector<glm::vec3> scale;
+	//	float density;
+	//	std::vector<glm::vec3> featuresAlbedo;
+	//	std::vector<float> featuresSpecular;
+	//	bool nActiveFeatures;
+	//	bool maxNFeatures;
+	//	bool sceneExtent;
+	//};
 
 	struct ParticleDensity {
 		glm::vec3 position;
@@ -37,6 +37,14 @@ public:
 		float padding;
 	};
 	vks::Buffer particleDensities;	//read only
+
+	struct ParticleSphCoefficient {
+		glm::vec3 featuresAlbedo;
+		float featuresSpecular;
+	};
+	vks::Buffer particleSphCoefficients;	//read only
+
+	vks::Buffer particleVisibility;			//read, write
 
 	// For Triangle Mesh (Should be renamed)
 	AccelerationStructure bottomLevelAS{};
@@ -150,12 +158,11 @@ public:
 				frame.uniformBufferStatic.destroy();
 
 				vkDestroyQueryPool(device, frame.timeStampQueryPool, nullptr);
-
-				frame.particleSphCoefficients.destroy();
-				frame.particleVisibility.destroy();
 			}
 
 			particleDensities.destroy();
+			particleSphCoefficients.destroy();
+			particleVisibility.destroy();
 
 			computeUniformBuffer.destroy();
 			geometryNodesBuffer.destroy();
@@ -863,7 +870,7 @@ public:
 			// WriteDescriptorSet for TLAS (binding0)
 			VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo = vks::initializers::writeDescriptorSetAccelerationStructureKHR();
 			descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-			descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS.handle;
+			descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS3DGRT.handle;
 
 			VkWriteDescriptorSet accelerationStructureWrite{};
 			accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -891,8 +898,8 @@ public:
 				// Binding 3: Uniform data Static
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3, &frame.uniformBufferStatic.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &particleDensities.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &frame.particleSphCoefficients.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &frame.particleVisibility.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &particleSphCoefficients.descriptor),
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &particleVisibility.descriptor),
 			};
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
@@ -1397,6 +1404,10 @@ public:
 		gModel.allocateAttributeBuffers(vulkanDevice, graphicsQueue);
 		// particle density
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleDensities, sizeof(ParticleDensity), nullptr));
+		// particle sph coefficient
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleSphCoefficients, sizeof(ParticleDensity), nullptr));
+		// particle visibility
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleVisibility, sizeof(ParticleDensity), nullptr));
 
 		createComputeDescriptorSets();
 		createComputePipeline();
