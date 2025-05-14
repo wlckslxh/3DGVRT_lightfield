@@ -514,7 +514,7 @@ public:
 		geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		geometry.geometry.triangles.vertexData = vertexBufferDeviceAddress;
 		geometry.geometry.triangles.maxVertex = scene.vertices.count;
-		geometry.geometry.triangles.vertexStride = sizeof(vkglTF::Vertex);
+		geometry.geometry.triangles.vertexStride = sizeof(float) * 3;
 		geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
 		geometry.geometry.triangles.indexData = indexBufferDeviceAddress;
 		geometry.geometry.triangles.transformData = transformBufferDeviceAddress;
