@@ -168,6 +168,8 @@ public:
 			geometryNodesBuffer.destroy();
 			deleteAccelerationStructure(bottomLevelAS);
 			deleteAccelerationStructure(topLevelAS);
+			deleteAccelerationStructure(bottomLevelAS3DGRT);
+			deleteAccelerationStructure(topLevelAS3DGRT);
 			transformBuffer.destroy();
 			shaderBindingTables.raygen.destroy();
 			shaderBindingTables.miss.destroy();
@@ -714,9 +716,9 @@ public:
 		// Global[0], Group Local[0]: Raygen group
 		memcpy(shaderBindingTables.raygen.mapped, shaderHandleStorage.data(), handleSize);
 		// Global[1 ~ 2], Group Local[0 ~ 1]: Miss group
-		memcpy(shaderBindingTables.miss.mapped, shaderHandleStorage.data() + handleSizeAligned, handleSize * 2);
+		memcpy(shaderBindingTables.miss.mapped, shaderHandleStorage.data() + handleSizeAligned, handleSize);
 		// Global[2], Group Local[0]: Hit group
-		memcpy(shaderBindingTables.hit.mapped, shaderHandleStorage.data() + handleSizeAligned * 3, handleSize);
+		memcpy(shaderBindingTables.hit.mapped, shaderHandleStorage.data() + handleSizeAligned * 2, handleSize);
 	}
 
 	/*
@@ -750,9 +752,9 @@ public:
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
 		// For transfer push constants
-		VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, sizeof(pushConstants), 0);
-		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+		//VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, sizeof(pushConstants), 0);
+		//pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+		//pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 		/*
@@ -804,7 +806,7 @@ public:
 		// Closest hit group 0 : For Debugging
 		{
 			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "closesthit.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
-			shaderStages[shaderStages.size() - 1].pSpecializationInfo = &specializationInfo;
+			//shaderStages[shaderStages.size() - 1].pSpecializationInfo = &specializationInfo;
 			VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
 			shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
 			shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
@@ -1041,7 +1043,7 @@ public:
 		*/
 		vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
-		vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
+		//vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 
 #if DIRECTRENDER
 		vks::tools::setImageLayout(
