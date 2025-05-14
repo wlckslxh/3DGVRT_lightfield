@@ -36,15 +36,15 @@ public:
 		glm::vec3 scale;
 		float padding;
 	};
-	vks::Buffer particleDensities;	//read only
-
+	
 	struct ParticleSphCoefficient {
 		glm::vec3 featuresAlbedo;
 		float featuresSpecular;
 	};
-	vks::Buffer particleSphCoefficients;	//read only
 
-	vks::Buffer particleVisibility;			//read, write
+	vks::Buffer particleDensities;	//read only
+	vks::Buffer particleSphCoefficients;	//read only
+	vks::Buffer particleVisibility;			//write (maybe don't need)
 
 	// For Triangle Mesh (Should be renamed)
 	AccelerationStructure bottomLevelAS{};

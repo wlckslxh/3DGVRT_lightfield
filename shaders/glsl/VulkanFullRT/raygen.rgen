@@ -21,7 +21,6 @@
 #include "../base/utils.glsl"
 
 /*** 3dgrt style ***/
-
 void initializeRayPayload(RayPayload rayPayload){
 	for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
 		rayPayload.hits[i].particleId = INVALID_PARTICLE_ID;
@@ -71,15 +70,15 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 // gas->aabb
 //Param params;
 #if !BUFFER_REFERENCE
-layout(std140, binding = 4, set = 0) buffer ParticleDensitieBuffer {
+layout(std140, binding = 4, set = 0) buffer ParticleDensities {
 	ParticleDensity d[];
 } particleDensities;
 layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
 	float c[];
 } particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]
-layout(std430, binding = 6, set = 0) buffer ParticleVisibility {
+layout(std430, binding = 6, set = 0) buffer ParticleVisibilities {
 	float v[];
-} particleVisibility;
+} particleVisibilities;
 #endif
 
 /***** 3DGS Functions *****/
@@ -330,10 +329,10 @@ void main()
 	float rayTransmittance = 1.0f;
 	float rayHitDistance = 0.0f;
 
-#ifdef ENABLE_NORMALS
+#if ENABLE_NORMALS
 	vec3 rayNormal = vec3(0.0f);
 #endif
-#ifdef ENABLE_HIT_COUNTS
+#if ENABLE_HIT_COUNTS
 	uint rayHitsCount = 0;
 #endif
 
@@ -375,12 +374,12 @@ void main()
 				);
 
 				if(acceptedHit){
-					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
+					particleVisibilities.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
 				}
 
 				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
 
-#ifdef ENABLE_HIT_COUNTS
+#if ENABLE_HIT_COUNTS
 				rayHitsCount += acceptedHit ? 1 : 0;
 #endif
 			}

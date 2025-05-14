@@ -18,7 +18,6 @@
 //#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 #include "../base/3dgs.glsl"
-#include "../base/utils.glsl"
 
 layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 
