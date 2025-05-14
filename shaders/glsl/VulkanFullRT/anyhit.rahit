@@ -20,7 +20,7 @@
 #include "../base/3dgs.glsl"
 #include "../base/utils.glsl"
 
-layout(location = 0) rayPayloadEXT RayPayload rayPayload;
+layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 
 void compareAndSwapHitPayloadValue(inout RayHit hit, int idx) {
     const float dist = rayPayload.hits[idx].dist;
