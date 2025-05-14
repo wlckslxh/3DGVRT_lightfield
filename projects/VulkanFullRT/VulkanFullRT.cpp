@@ -168,6 +168,8 @@ public:
 			geometryNodesBuffer.destroy();
 			deleteAccelerationStructure(bottomLevelAS);
 			deleteAccelerationStructure(topLevelAS);
+			deleteAccelerationStructure(bottomLevelAS3DGRT);
+			deleteAccelerationStructure(topLevelAS3DGRT);
 			transformBuffer.destroy();
 			shaderBindingTables.raygen.destroy();
 			shaderBindingTables.miss.destroy();
@@ -572,7 +574,7 @@ public:
 		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
 		accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
 		accelerationDeviceAddressInfo.accelerationStructure = bottomLevelAS3DGRT.handle;
-		bottomLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &accelerationDeviceAddressInfo);
+		bottomLevelAS3DGRT.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &accelerationDeviceAddressInfo);
 
 		deleteScratchBuffer(scratchBuffer);
 	}
@@ -750,9 +752,9 @@ public:
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
 		// For transfer push constants
-		VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, sizeof(pushConstants), 0);
-		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+		//VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, sizeof(pushConstants), 0);
+		//pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+		//pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 		/*
@@ -774,20 +776,6 @@ public:
 			shaderGroups.push_back(shaderGroup);
 		}
 
-		// Closest hit group 0 : Basic
-		{
-			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "anyhit.rahit.spv", VK_SHADER_STAGE_ANY_HIT_BIT_KHR));
-			shaderStages[shaderStages.size() - 1].pSpecializationInfo = &specializationInfo;
-			VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
-			shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-			shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-			shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
-			shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
-			shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
-			shaderGroup.anyHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-			shaderGroups.push_back(shaderGroup);
-		}
-
 		// Miss group
 		{
 			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "miss.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
@@ -799,9 +787,23 @@ public:
 			shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
 			shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
 			shaderGroups.push_back(shaderGroup);
-			// Second shader for shadows
-			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "shadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
-			shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+			//// Second shader for shadows
+			//shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "shadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
+			//shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+			//shaderGroups.push_back(shaderGroup);
+		}
+
+		// Closest hit group 0 : Basic
+		{
+			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "anyhit.rahit.spv", VK_SHADER_STAGE_ANY_HIT_BIT_KHR));
+			//shaderStages[shaderStages.size() - 1].pSpecializationInfo = &specializationInfo;
+			VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
+			shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+			shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+			shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
+			shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+			shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+			shaderGroup.anyHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
 			shaderGroups.push_back(shaderGroup);
 		}
 		/*
@@ -1031,7 +1033,7 @@ public:
 		*/
 		vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
-		vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
+		//vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 
 #if DIRECTRENDER
 		vks::tools::setImageLayout(
