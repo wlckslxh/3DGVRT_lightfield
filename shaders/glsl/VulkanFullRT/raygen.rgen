@@ -49,7 +49,8 @@ void initializeRayPayload(RayPayload rayPayload){
 //}
 
 /***** 3DGS *****/
-layout(location = 0) rayPayloadEXT RayPayload rayPayload;
+//layout(location = 0) rayPayloadEXT RayPayload rayPayload;
+layout(location = 0) rayPayloadEXT vec3 color;
 
 // Initialized with default value. Appropriate value will be transfered from application.
 layout(constant_id = 0) const uint numOfLights = 1;	
@@ -330,65 +331,71 @@ void main()
 	float rayTransmittance = 1.0f;
 	float rayHitDistance = 0.0f;
 
-#ifdef ENABLE_NORMALS
-	vec3 rayNormal = vec3(0.0f);
-#endif
-#ifdef ENABLE_HIT_COUNTS
-	uint rayHitsCount = 0;
-#endif
+//#ifdef ENABLE_NORMALS
+//	vec3 rayNormal = vec3(0.0f);
+//#endif
+//#ifdef ENABLE_HIT_COUNTS
+//	uint rayHitsCount = 0;
+//#endif
+//
+//	vec2 minMaxT = intersectAABB(ubo.params.aabb, rayOrigin.xyz, rayDirection.xyz);
+//	const float epsT = EPS_T;
+//
+//	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
+//
+//	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > ubo.params.minTransmittance)){
+//		// Gather k hits
+//		trace(rayPayload, rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
+//		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
+//			break;
+//		}
+//
+//		// Process k hits
+//		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+//			const RayHit rayHit = rayPayload.hits[i];
+//
+//			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > ubo.params.minTransmittance)){
+//				const bool acceptedHit = processHit(
+//					rayOrigin.xyz,
+//					rayDirection.xyz,
+//					rayHit.particleId,
+//#if BUFFER_REFERENCE
+//					ubo.params.densityBufferDeviceAddress,
+//					ubo.params.sphCoefficientBufferDeviceAddress,
+//					ubo.params.visibilityBufferDeviceAddress,
+//#endif
+//					ubo.params.hitMinGaussianResponse,
+//					ubo.params.alphaMinThreshold,
+//					int(ubo.params.sphEvalDegree),
+//					rayTransmittance,
+//					rayRadiance,
+//					rayHitDistance
+//#if ENABLE_NORMALS
+//					,rayNormal
+//#endif
+//				);
+//
+//				if(acceptedHit){
+//					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
+//				}
+//
+//				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
+//
+//#ifdef ENABLE_HIT_COUNTS
+//				rayHitsCount += acceptedHit ? 1 : 0;
+//#endif
+//			}
+//		}
+//	}
+//
+//	// enough?
+//	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
 
-	vec2 minMaxT = intersectAABB(ubo.params.aabb, rayOrigin.xyz, rayDirection.xyz);
-	const float epsT = EPS_T;
+	const float tmin = EPS_T;
+	color = vec3(0.0f);
+	traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, rayOrigin.xyz, tmin, rayDirection.xyz, 10000.0f, 0);
 
-	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
-
-	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > ubo.params.minTransmittance)){
-		// Gather k hits
-		trace(rayPayload, rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
-		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
-			break;
-		}
-
-		// Process k hits
-		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
-			const RayHit rayHit = rayPayload.hits[i];
-
-			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > ubo.params.minTransmittance)){
-				const bool acceptedHit = processHit(
-					rayOrigin.xyz,
-					rayDirection.xyz,
-					rayHit.particleId,
-#if BUFFER_REFERENCE
-					ubo.params.densityBufferDeviceAddress,
-					ubo.params.sphCoefficientBufferDeviceAddress,
-					ubo.params.visibilityBufferDeviceAddress,
-#endif
-					ubo.params.hitMinGaussianResponse,
-					ubo.params.alphaMinThreshold,
-					int(ubo.params.sphEvalDegree),
-					rayTransmittance,
-					rayRadiance,
-					rayHitDistance
-#if ENABLE_NORMALS
-					,rayNormal
-#endif
-				);
-
-				if(acceptedHit){
-					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
-				}
-
-				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
-
-#ifdef ENABLE_HIT_COUNTS
-				rayHitsCount += acceptedHit ? 1 : 0;
-#endif
-			}
-		}
-	}
-
-	// enough?
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0f));
 
 	/*** playground style ***/
 //	vec4 volumetricRadDns = traceGaussians(rayOrigin, rayDirection, EPS_T, ray_t_max);
