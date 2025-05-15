@@ -10,6 +10,7 @@
 #define EPS_T 1e-9
 #define MAX_HIT_PER_TRACE 16
 #define SPH_MAX_NUM_COEFFS 16	// "configs/render/3dgrt.yaml - particle_radiance_sph_degree" : (x+1) * (x+1)
+#define SPECULAR_DIMENSION 45
 
 #define BUFFER_REFERENCE false	// This macro should be managed with Define.h
 

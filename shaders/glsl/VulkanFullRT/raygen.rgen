@@ -77,7 +77,7 @@ layout(std140, binding = 4, set = 0) buffer ParticleDensitieBuffer {
 } particleDensities;
 layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
 	float c[];
-} particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]
+} particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. params.particleRadiance
 layout(std430, binding = 6, set = 0) buffer ParticleVisibility {
 	float v[];
 } particleVisibility;

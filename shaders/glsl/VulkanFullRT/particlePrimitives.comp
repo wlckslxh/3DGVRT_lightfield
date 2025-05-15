@@ -50,6 +50,18 @@ layout(std430, binding = 7) buffer WriteParticleDensity
 {
 	float writeParticleDensity[];
 };
+layout(std430, binding = 8) buffer FeaturesAlbedo
+{
+	float featuresAlbedo[];
+};
+layout(std430, binding = 9) buffer FeaturesSpecular
+{
+	float featuresSpecular[];
+};
+layout(std430, binding = 10) buffer WriteParticleSphCoefficient
+{
+	float writeParticleSphCoefficient[];
+};
 
 ///////////////////////////////////////////////
 const uint icosaHedronNumVrt = 12;
@@ -166,5 +178,16 @@ void main()
         writeParticleDensity[base + 10] = gScl[idx * 3 + 2];
         // padding
         writeParticleDensity[base + 11] = 0.0; 
+
+        /*** particle sph coefficient ***/
+        base = idx * (3 + SPECULAR_DIMENSION);
+
+        // albedo
+        for (uint i = 0; i < 3; i++) 
+            writeParticleSphCoefficient[base + i] = featuresAlbedo[idx * 3 + i];
+
+        // specular
+        for (uint i = 0; i < SPECULAR_DIMENSION; i++)
+            writeParticleSphCoefficient[base + 3 + i] = featuresSpecular[idx * 3 + i];
     }
 }
