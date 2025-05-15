@@ -2,6 +2,7 @@
 
 #include "vulkan/vulkan.h"
 #include "VulkanDevice.h"
+#include "Define.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -40,7 +41,7 @@ namespace vk3DGRT {
 		struct Attributes {
 			int count;
 			vks::Buffer storageBuffer;
-		} positions, rotations, scales, densities, vertices, indices;
+		} positions, rotations, scales, densities, vertices, indices, featuresAlbedo, featuresSpecular;
 
 		void load3DGRTModel(std::string filename, vks::VulkanDevice* device);
 		void allocateAttributeBuffers(vks::VulkanDevice* vulkanDevice, VkQueue queue);

@@ -160,7 +160,6 @@ void main()
 
          /*** particle density ***/
         uint base = idx * 12;
-
         // position
         writeParticleDensity[base + 0] = gPos[idx * 3];
         writeParticleDensity[base + 1] = gPos[idx * 3 + 1];
@@ -181,13 +180,11 @@ void main()
 
         /*** particle sph coefficient ***/
         base = idx * (3 + SPECULAR_DIMENSION);
-
         // albedo
         for (uint i = 0; i < 3; i++) 
             writeParticleSphCoefficient[base + i] = featuresAlbedo[idx * 3 + i];
-
         // specular
         for (uint i = 0; i < SPECULAR_DIMENSION; i++)
-            writeParticleSphCoefficient[base + 3 + i] = featuresSpecular[idx * 3 + i];
+            writeParticleSphCoefficient[base + 3 + i] = featuresSpecular[idx * SPECULAR_DIMENSION + i];
     }
 }

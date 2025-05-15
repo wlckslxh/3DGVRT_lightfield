@@ -48,8 +48,7 @@ void initializeRayPayload(RayPayload rayPayload){
 //}
 
 /***** 3DGS *****/
-//layout(location = 0) rayPayloadEXT RayPayload rayPayload;
-layout(location = 0) rayPayloadEXT vec3 color;
+layout(location = 0) rayPayloadEXT RayPayload rayPayload;
 
 // Initialized with default value. Appropriate value will be transfered from application.
 layout(constant_id = 0) const uint numOfLights = 1;	
@@ -375,7 +374,7 @@ void main()
 				);
 
 				if(acceptedHit){
-					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
+					particleVisibilities.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
 				}
 
 				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
@@ -387,12 +386,8 @@ void main()
 		}
 	}
 
-
-	const float tmin = EPS_T;
-	color = vec3(0.0f);
-	traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, rayOrigin.xyz, tmin, rayDirection.xyz, 10000.0f, 0);
-
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0f));
+   // enough?
+   imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
 
 	/*** playground style ***/
 //	vec4 volumetricRadDns = traceGaussians(rayOrigin, rayDirection, EPS_T, ray_t_max);

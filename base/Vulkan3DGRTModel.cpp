@@ -182,6 +182,14 @@ namespace vk3DGRT {
 			&densities.storageBuffer,
 			sizeof(float) * densities.count));
 		vulkanDevice->copyBuffer(splatSet.opacity.data(), &densities.storageBuffer, queue);
+
+		featuresAlbedo.count = 3 * splatSet.size();
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &featuresAlbedo.storageBuffer, sizeof(float) * featuresAlbedo.count));
+		vulkanDevice->copyBuffer(splatSet.f_dc.data(), &featuresAlbedo.storageBuffer, queue);
+
+		featuresSpecular.count = SPECULAR_DIMENSION * splatSet.size();
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &featuresSpecular.storageBuffer, sizeof(float) * featuresSpecular.count));
+		vulkanDevice->copyBuffer(splatSet.f_rest.data(), &featuresSpecular.storageBuffer, queue);
 	}
 }
 

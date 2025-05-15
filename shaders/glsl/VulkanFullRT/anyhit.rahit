@@ -33,7 +33,7 @@ void compareAndSwapHitPayloadValue(inout RayHit hit, int idx) {
 }
 
 void main(){
-	RayHit hit = RayHit(gl_PrimitiveID, gl_HitTEXT);
+	RayHit hit = RayHit(gl_PrimitiveID / 20, gl_HitTEXT);
 
 	if(hit.dist < rayPayload.hits[MAX_HIT_PER_TRACE - 1].dist){
 #pragma unroll
