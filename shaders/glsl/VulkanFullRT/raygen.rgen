@@ -21,7 +21,6 @@
 #include "../base/utils.glsl"
 
 /*** 3dgrt style ***/
-
 void initializeRayPayload(RayPayload rayPayload){
 	for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
 		rayPayload.hits[i].particleId = INVALID_PARTICLE_ID;
@@ -72,7 +71,7 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 // gas->aabb
 //Param params;
 #if !BUFFER_REFERENCE
-layout(std140, binding = 4, set = 0) buffer ParticleDensitieBuffer {
+layout(std140, binding = 4, set = 0) buffer ParticleDensities {
 	ParticleDensity d[];
 } particleDensities;
 layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
@@ -80,7 +79,7 @@ layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
 } particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. params.particleRadiance
 layout(std430, binding = 6, set = 0) buffer ParticleVisibility {
 	float v[];
-} particleVisibility;
+} particleVisibilities;
 #endif
 
 /***** 3DGS Functions *****/
@@ -103,7 +102,7 @@ void trace(RayPayload rayPayload, vec3 rayOri, vec3 rayDir, const float tmin, co
 	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 1, 0, rayOri, tmin, rayDir, tmax, 0);
 }
 
-// ÆÄÆ¼Å¬ÀÌ ÁÖº¯¿¡ ÁÖ´Â ¿µÇâ ¼³Á¤
+// ï¿½ï¿½Æ¼Å¬ï¿½ï¿½ ï¿½Öºï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 float particleResponse(float grayDist){
 	switch (PARTICLE_KERNEL_DEGREE) {
     case 8: // Zenzizenzizenzic
@@ -331,65 +330,63 @@ void main()
 	float rayTransmittance = 1.0f;
 	float rayHitDistance = 0.0f;
 
-//#ifdef ENABLE_NORMALS
-//	vec3 rayNormal = vec3(0.0f);
-//#endif
-//#ifdef ENABLE_HIT_COUNTS
-//	uint rayHitsCount = 0;
-//#endif
-//
-//	vec2 minMaxT = intersectAABB(ubo.params.aabb, rayOrigin.xyz, rayDirection.xyz);
-//	const float epsT = EPS_T;
-//
-//	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
-//
-//	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > ubo.params.minTransmittance)){
-//		// Gather k hits
-//		trace(rayPayload, rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
-//		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
-//			break;
-//		}
-//
-//		// Process k hits
-//		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
-//			const RayHit rayHit = rayPayload.hits[i];
-//
-//			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > ubo.params.minTransmittance)){
-//				const bool acceptedHit = processHit(
-//					rayOrigin.xyz,
-//					rayDirection.xyz,
-//					rayHit.particleId,
-//#if BUFFER_REFERENCE
-//					ubo.params.densityBufferDeviceAddress,
-//					ubo.params.sphCoefficientBufferDeviceAddress,
-//					ubo.params.visibilityBufferDeviceAddress,
-//#endif
-//					ubo.params.hitMinGaussianResponse,
-//					ubo.params.alphaMinThreshold,
-//					int(ubo.params.sphEvalDegree),
-//					rayTransmittance,
-//					rayRadiance,
-//					rayHitDistance
-//#if ENABLE_NORMALS
-//					,rayNormal
-//#endif
-//				);
-//
-//				if(acceptedHit){
-//					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
-//				}
-//
-//				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
-//
-//#ifdef ENABLE_HIT_COUNTS
-//				rayHitsCount += acceptedHit ? 1 : 0;
-//#endif
-//			}
-//		}
-//	}
-//
-//	// enough?
-//	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
+#ifdef ENABLE_NORMALS
+	vec3 rayNormal = vec3(0.0f);
+#endif
+#ifdef ENABLE_HIT_COUNTS
+	uint rayHitsCount = 0;
+#endif
+
+	vec2 minMaxT = intersectAABB(ubo.params.aabb, rayOrigin.xyz, rayDirection.xyz);
+	const float epsT = EPS_T;
+
+	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
+
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > ubo.params.minTransmittance)){
+		// Gather k hits
+		trace(rayPayload, rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
+		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
+			break;
+		}
+
+		// Process k hits
+		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+			const RayHit rayHit = rayPayload.hits[i];
+
+			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > ubo.params.minTransmittance)){
+				const bool acceptedHit = processHit(
+					rayOrigin.xyz,
+					rayDirection.xyz,
+					rayHit.particleId,
+#if BUFFER_REFERENCE
+					ubo.params.densityBufferDeviceAddress,
+					ubo.params.sphCoefficientBufferDeviceAddress,
+					ubo.params.visibilityBufferDeviceAddress,
+#endif
+					ubo.params.hitMinGaussianResponse,
+					ubo.params.alphaMinThreshold,
+					int(ubo.params.sphEvalDegree),
+					rayTransmittance,
+					rayRadiance,
+					rayHitDistance
+#if ENABLE_NORMALS
+					,rayNormal
+#endif
+				);
+
+				if(acceptedHit){
+					particleVisibility.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
+				}
+
+				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
+
+#ifdef ENABLE_HIT_COUNTS
+				rayHitsCount += acceptedHit ? 1 : 0;
+#endif
+			}
+		}
+	}
+
 
 	const float tmin = EPS_T;
 	color = vec3(0.0f);

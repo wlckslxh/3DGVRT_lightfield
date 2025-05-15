@@ -36,20 +36,21 @@ public:
 		glm::vec3 scale;
 		float padding;
 	};
-	vks::Buffer particleDensities;	//read only
-
+	
 	struct ParticleSphCoefficient {
 		glm::vec3 featuresAlbedo;
 		float featuresSpecular[SPECULAR_DIMENSION];
 	};
-	vks::Buffer particleSphCoefficients;	//read only
-	vks::Buffer featuresAlbedo;
-	vks::Buffer featuresSpecular;
 
 	struct ParticleVisibility {
 		float particleVisibility[NUM_OF_GAUSSIANS];	// temporal size
 	};
-	vks::Buffer particleVisibility;			//read, write
+
+	vks::Buffer featuresAlbedo;
+	vks::Buffer featuresSpecular;
+	vks::Buffer particleDensities;	//read only
+	vks::Buffer particleSphCoefficients;	//read only
+	vks::Buffer particleVisibility;			//write (maybe don't need)
 
 	// For Triangle Mesh (Should be renamed)
 	AccelerationStructure bottomLevelAS{};
@@ -792,33 +793,23 @@ public:
 			shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
 			shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
 			shaderGroups.push_back(shaderGroup);
+			//// Second shader for shadows
+			//shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "shadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
+			//shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+			//shaderGroups.push_back(shaderGroup);
 		}
 
 		// Closest hit group 0 : Basic
-		//{
-		//	shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "anyhit.rahit.spv", VK_SHADER_STAGE_ANY_HIT_BIT_KHR));
-		//	shaderStages[shaderStages.size() - 1].pSpecializationInfo = &specializationInfo;
-		//	VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
-		//	shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-		//	shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-		//	shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
-		//	shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
-		//	shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
-		//	shaderGroup.anyHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-		//	shaderGroups.push_back(shaderGroup);
-		//}
- 
-		// Closest hit group 0 : For Debugging
 		{
-			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "closesthit.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "anyhit.rahit.spv", VK_SHADER_STAGE_ANY_HIT_BIT_KHR));
 			//shaderStages[shaderStages.size() - 1].pSpecializationInfo = &specializationInfo;
 			VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
 			shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
 			shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 			shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
-			shaderGroup.closestHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+			shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
 			shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
-			shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+			shaderGroup.anyHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
 			shaderGroups.push_back(shaderGroup);
 		}
 		/*
