@@ -58,7 +58,6 @@ layout(constant_id = 3) const uint staticLightOffset = 1;
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
-
 layout(binding = 2, set = 0) uniform uniformBuffer
 {
 	mat4 viewInverse;
@@ -66,6 +65,10 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 	Light lights[numOfDynamicLights];
 	Param params;
 } ubo;
+layout(binding = 3, set = 0) uniform uniformBufferStaticLight
+{
+	Light lights[numOfStaticLights];
+} uboStaticLight;
 
 // gas->aabb
 //Param params;

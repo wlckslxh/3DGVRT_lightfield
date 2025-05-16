@@ -35,17 +35,14 @@ namespace vks {
 		struct Param {
 			alignas(16) Aabb aabb = { -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
 
-			alignas(4) float minTransmittance = 0.001f; // to be separated to Config.h?
 #if BUFFER_REFERENCE
 			uint64_t densityBufferDeviceAddress;
 			uint64_t sphCoefficientBufferDeviceAddress;
 #endif
-			//float particleRadiance;	// not used
+			alignas(4) float minTransmittance = 0.001f; // to be separated to Config.h?
 			alignas(4) float hitMinGaussianResponse = 0.0113f;	// particle kernel min response. to be separated to Config.h?
 			alignas(4) float alphaMinThreshold = 1.0f / 255.0f; // to be separated to Config.h?
 			alignas(4) unsigned int sphEvalDegree = 0;	// n active features. to be separated to Config.h?
-
-			//float particleVisibility;
 		};
 
 		struct UniformData {

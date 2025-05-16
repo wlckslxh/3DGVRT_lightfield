@@ -34,8 +34,8 @@ mat3 quaternionWXYZToMatrix(const vec4 q) {
 }
 
 vec2 intersectAABB(const Aabb aabb, vec3 rayOri, vec3 rayDir) {
-    vec3 t0 = vec3(aabb.minX, aabb.minY, aabb.minZ) - rayOri / rayDir;
-    vec3 t1 = vec3(aabb.maxX, aabb.maxY, aabb.maxZ) - rayOri / rayDir;
+    vec3 t0 = (vec3(aabb.minX, aabb.minY, aabb.minZ) - rayOri) / max(rayDir, vec3(1e-6));
+    vec3 t1 = (vec3(aabb.maxX, aabb.maxY, aabb.maxZ) - rayOri) / max(rayDir, vec3(1e-6));
     vec3 tmax = vec3(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));
     vec3 tmin = vec3(min(t0.x, t1.x), min(t0.y, t1.y), min(t0.z, t1.z));
     float maxOfMin = max(0.0f, max(tmin.x, max(tmin.y, tmin.z)));
