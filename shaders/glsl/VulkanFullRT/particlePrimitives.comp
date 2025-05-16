@@ -12,6 +12,7 @@
 ///////////////////////////////////////////////
 
 #include "../base/3dgs.glsl"
+#include "../base/utils.glsl"
 
 layout (local_size_x = NUM_OF_GAUSSIANS) in;
 
@@ -97,16 +98,9 @@ float kernelScale(float density, float modulatedMinResponse, uint opts, float ke
     return pow(log(minResponse) / a, 1.0f / b);
 }
 
-void quaternionWXYZToMatrix(const vec4 q, inout mat3 ret) {
-    const float r = q.x;
-    const float x = q.y;
-    const float y = q.z;
-    const float z = q.w;
-
-    // Compute rotation matrix from quaternion
-	ret[0] = vec3((1.0f - 2.0f * (y * y + z * z)), 2.0f * (x * y + r * z), 2.0f * (x * z - r * y));
-    ret[1] = vec3(2.0f * (x * y - r * z), (1.0f - 2.0f * (x * x + z * z)), 2.0f * (y * z + r * x));
-    ret[2] = vec3(2.0f * (x * z + r * y), 2.0f * (y * z - r * x), (1.f - 2.0f * (x * x + y * y)));
+float sigmoid(float x)
+{
+	return 1.0f / (1.0f + exp(-x));
 }
 ///////////////////////////////////////////////
 void main()
@@ -120,9 +114,10 @@ void main()
 		const uint sSclIdx = idx * 3;
 
         mat3 rot;
-        quaternionWXYZToMatrix(vec4(gRot[sRotIdx], gRot[sRotIdx + 1], gRot[sRotIdx + 2], gRot[sRotIdx + 3]), rot);
-        const vec3 scl = vec3(gScl[sSclIdx], gScl[sSclIdx + 1], gScl[sSclIdx + 2]);
+		rot = quaternionWXYZToMatrix(normalize(vec4(gRot[sRotIdx], gRot[sRotIdx + 1], gRot[sRotIdx + 2], gRot[sRotIdx + 3])));
+        const vec3 scl = exp(vec3(gScl[sSclIdx], gScl[sSclIdx + 1], gScl[sSclIdx + 2]));	//scale activation
         const vec3 trans = vec3(gPos[sPosIdx], gPos[sPosIdx + 1], gPos[sPosIdx + 2]);
+		float density = sigmoid(gDns[idx]);	//activation
 
         const vec3 icosaHedronVrt[icosaHedronNumVrt] = {
 			vec3(-1, goldenRatio, 0), vec3(1, goldenRatio, 0), vec3(0, 1, -goldenRatio),
@@ -131,7 +126,7 @@ void main()
             vec3(0, -1, -goldenRatio), vec3(goldenRatio, 0, -1), vec3(1, -goldenRatio, 0)
 		};
 
-        const vec3 kscl = kernelScale(gDns[idx], ubo.kernelMinResponse, ubo.opts, ubo.degree) * scl * icosaVrtScale;
+        const vec3 kscl = kernelScale(density, ubo.kernelMinResponse, ubo.opts, ubo.degree) * scl * icosaVrtScale;
 #pragma unroll
         for (int i = 0; i < icosaHedronNumVrt; ++i) {
 			vec3 vert = (icosaHedronVrt[i] * kscl) * rot + trans;

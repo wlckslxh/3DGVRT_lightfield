@@ -1265,9 +1265,9 @@ public:
 	void updateComputeUniformBuffer()
 	{
 		computeUniformData.numOfGaussians = gModel.splatSet.size();
-		computeUniformData.kernelMinResponse = 1;	// temporal value
-		computeUniformData.opts = 0;				// temporal value
-		computeUniformData.degree = 1;				// temporal value
+		computeUniformData.kernelMinResponse = 0.0113f;	// these values should be managed as config val
+		computeUniformData.opts = 0;
+		computeUniformData.degree = 4;
 
 		// mapping
 		vks::Buffer stagingBuffer;
