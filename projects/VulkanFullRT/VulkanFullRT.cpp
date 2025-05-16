@@ -1130,6 +1130,13 @@ public:
 		uniformData.viewInverse = glm::inverse(camera.matrices.view);
 		uniformData.projInverse = glm::inverse(camera.matrices.perspective);
 
+		//uniformData.params.aabb = { -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
+		uniformData.params.aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
+		uniformData.params.minTransmittance = 0.001f;
+		uniformData.params.hitMinGaussianResponse = 0.0113f;
+		uniformData.params.alphaMinThreshold = 1.0f / 255.0f;
+		uniformData.params.sphEvalDegree = 0;
+
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		memcpy(currentFrame.uniformBuffer.mapped, &uniformData, sizeof(uniformData));
 	}
