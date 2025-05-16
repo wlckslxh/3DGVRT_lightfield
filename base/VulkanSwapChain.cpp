@@ -381,11 +381,10 @@ void VulkanSwapChain::create(uint32_t *width, uint32_t *height, bool vsync, bool
 	if (surfCaps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) {
 		swapchainCI.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	}
-#if DIRECTRENDER
+
 	if (surfCaps.supportedUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT) {
 		swapchainCI.imageUsage |= VK_IMAGE_USAGE_STORAGE_BIT;
 	}
-#endif
 
 	VK_CHECK_RESULT(vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain));
 

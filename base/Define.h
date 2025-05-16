@@ -17,11 +17,10 @@
 #define MEASURE_FRAME 2000
 #endif
 
-#define STOP_LIGHT 0
-
 #define ASSET 0
+#define LOAD_GLTF 0
+
 #define MULTIQUEUE 0	// 0 is Default
-#define DIRECTRENDER 1	// 1 is Default
 #define TIMER_CORRECTION 1
 #define TEXTURE_COMPRESSION 1
 

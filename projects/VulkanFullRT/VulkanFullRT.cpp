@@ -17,17 +17,6 @@
 class VulkanFullRT : public VulkanRTCommon
 {
 public:
-	//struct MixtureOfGaussians {
-	//	std::vector<glm::vec3> positions;
-	//	glm::mat4 rotation;
-	//	std::vector<glm::vec3> scale;
-	//	float density;
-	//	std::vector<glm::vec3> featuresAlbedo;
-	//	std::vector<float> featuresSpecular;
-	//	bool nActiveFeatures;
-	//	bool maxNFeatures;
-	//	bool sceneExtent;
-	//};
 
 	struct ParticleDensity {
 		glm::vec3 position;
@@ -50,31 +39,10 @@ public:
 	vks::Buffer particleSphCoefficients;	//read only
 	vks::Buffer particleVisibility;			//write (maybe don't need)
 
-	// For Triangle Mesh (Should be renamed)
-	AccelerationStructure bottomLevelAS{};
-	AccelerationStructure topLevelAS{};
 	// For 3DGRT Model
 	AccelerationStructure bottomLevelAS3DGRT{};
 	AccelerationStructure topLevelAS3DGRT{};
 
-	struct GeometryNode {
-		uint64_t vertexBufferDeviceAddress;
-		uint64_t indexBufferDeviceAddress;
-		int32_t textureIndexBaseColor;
-		int32_t textureIndexOcclusion;
-		int32_t textureIndexNormal;
-		int32_t textureIndexMetallicRoughness;
-		int32_t textureIndexEmissive;
-		float reflectance;
-		float refractance;
-		float ior;
-		float metallicFactor;
-		float roughnessFactor;
-	};
-	vks::Buffer geometryNodesBuffer;
-
-	uint32_t indexCount{ 0 };
-	vks::Buffer transformBuffer;
 	vks::Buffer transformBuffer3DGRT;
 
 	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
@@ -83,10 +51,6 @@ public:
 		ShaderBindingTable miss;
 		ShaderBindingTable hit;
 	} shaderBindingTables;
-
-#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	typedef unsigned char byte;
-#endif
 
 	vks::utils::UniformData uniformData;
 	vks::utils::UniformDataStaticLight uniformDataStaticLight;
@@ -111,13 +75,9 @@ public:
 		VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
 	} compute;
 
-	vkglTF::Model scene;
 	vk3DGRT::Model gModel;
 
 	struct FrameObject : public BaseFrameObject {
-#if !DIRECTRENDER
-		StorageImage storageImage;
-#endif
 		VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
 	};
 
@@ -133,6 +93,36 @@ public:
 	VkPhysicalDeviceHostQueryResetFeaturesEXT physicalDeviceHostQueryResetFeatures{};
 
 	const uint32_t timeStampCountPerFrame = 1;
+
+#if LOAD_GLTF
+	// For Triangle Mesh (Should be renamed)
+	AccelerationStructure bottomLevelAS{};
+	AccelerationStructure topLevelAS{};
+
+	struct GeometryNode {
+		uint64_t vertexBufferDeviceAddress;
+		uint64_t indexBufferDeviceAddress;
+		int32_t textureIndexBaseColor;
+		int32_t textureIndexOcclusion;
+		int32_t textureIndexNormal;
+		int32_t textureIndexMetallicRoughness;
+		int32_t textureIndexEmissive;
+		float reflectance;
+		float refractance;
+		float ior;
+		float metallicFactor;
+		float roughnessFactor;
+	};
+	vks::Buffer geometryNodesBuffer;
+
+	vks::Buffer transformBuffer;
+
+	vkglTF::Model scene;
+#endif
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+	typedef unsigned char byte;
+#endif
 
 	VulkanFullRT() : VulkanRTCommon()
 	{
@@ -155,9 +145,6 @@ public:
 
 			for (FrameObject& frame : frameObjects)
 			{
-#if !DIRECTRENDER
-				deleteStorageImage(frame.storageImage);
-#endif
 				frame.uniformBuffer.destroy();
 				frame.uniformBufferStatic.destroy();
 
@@ -169,16 +156,22 @@ public:
 			particleVisibility.destroy();
 
 			computeUniformBuffer.destroy();
-			geometryNodesBuffer.destroy();
-			deleteAccelerationStructure(bottomLevelAS);
-			deleteAccelerationStructure(topLevelAS);
+			
 			deleteAccelerationStructure(bottomLevelAS3DGRT);
 			deleteAccelerationStructure(topLevelAS3DGRT);
-			transformBuffer.destroy();
+			transformBuffer3DGRT.destroy();
+		
 			shaderBindingTables.raygen.destroy();
 			shaderBindingTables.miss.destroy();
 			shaderBindingTables.hit.destroy();
 			destroyCommandBuffers();
+
+#if LOAD_GLTF
+			geometryNodesBuffer.destroy();
+			deleteAccelerationStructure(bottomLevelAS);
+			deleteAccelerationStructure(topLevelAS);
+			transformBuffer.destroy();
+#endif
 		}
 	}
 
@@ -224,6 +217,7 @@ public:
 		VK_CHECK_RESULT(vkBindBufferMemory(device, accelerationStructure.buffer, accelerationStructure.memory, 0));
 	}
 
+#if LOAD_GLTF
 	/*
 	Create the bottom level acceleration structure that contains the scene's actual geometry (vertices, triangles)
 	*/
@@ -489,6 +483,7 @@ public:
 		deleteScratchBuffer(scratchBuffer);
 		instancesBuffer.destroy();
 	}
+#endif
 
 	void createBottomLevelAccelerationStructure3DGRT()
 	{
@@ -519,7 +514,7 @@ public:
 		geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 		geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		geometry.geometry.triangles.vertexData = vertexBufferDeviceAddress;
-		geometry.geometry.triangles.maxVertex = scene.vertices.count;
+		geometry.geometry.triangles.maxVertex = gModel.vertices.count;
 		geometry.geometry.triangles.vertexStride = sizeof(float) * 3;
 		geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
 		geometry.geometry.triangles.indexData = indexBufferDeviceAddress;
@@ -583,9 +578,6 @@ public:
 		deleteScratchBuffer(scratchBuffer);
 	}
 
-	/*
-		The top level acceleration structure contains the scene's object instances
-	*/
 	void createTopLevelAccelerationStructure3DGRT()
 	{
 		VkTransformMatrixKHR transformMatrix = {
@@ -791,10 +783,12 @@ public:
 			shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
 			shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
 			shaderGroups.push_back(shaderGroup);
-			//// Second shader for shadows
-			//shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "shadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
-			//shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-			//shaderGroups.push_back(shaderGroup);
+#if LOAD_GLTF
+			// Second shader for shadows
+			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "shadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
+			shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+			shaderGroups.push_back(shaderGroup);
+#endif
 		}
 
 		// Closest hit group 0 : Basic
@@ -888,11 +882,7 @@ public:
 			accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
 			VkDescriptorImageInfo storageImageDescriptor;
-#if DIRECTRENDER
 			storageImageDescriptor = { VK_NULL_HANDLE, swapChain.buffers[frame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
-#else
-			storageImageDescriptor = { VK_NULL_HANDLE, frame.storageImage.view, VK_IMAGE_LAYOUT_GENERAL };
-#endif
 
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				// Binding 0: Top level acceleration structure
@@ -998,14 +988,8 @@ public:
 	{
 		VK_CHECK_RESULT(vkDeviceWaitIdle(device));
 		for (FrameObject& frame : frameObjects) {
-#if DIRECTRENDER
+
 			VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, swapChain.buffers[frame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
-#else
-			// Recreate storage image
-			createStorageImage(frame.storageImage, swapChain.colorFormat, { width, height, 1 });
-			// Update descriptor using the storage image
-			VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, frame.storageImage.view, VK_IMAGE_LAYOUT_GENERAL };
-#endif
 			VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(frame.descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
 			vkUpdateDescriptorSets(device, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
 		}
@@ -1052,7 +1036,6 @@ public:
 		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
 		//vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 
-#if DIRECTRENDER
 		vks::tools::setImageLayout(
 			frame.commandBuffer,
 			swapChain.images[frame.imageIndex],
@@ -1077,61 +1060,6 @@ public:
 			VK_IMAGE_LAYOUT_GENERAL,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			subresourceRange);
-#else
-		VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-		vkCmdTraceRaysKHR(
-			frame.commandBuffer,
-			&shaderBindingTables.raygen.stridedDeviceAddressRegion,
-			&shaderBindingTables.miss.stridedDeviceAddressRegion,
-			&shaderBindingTables.hit.stridedDeviceAddressRegion,
-			&emptySbtEntry,
-			width,
-			height,
-			1);
-		/*
-			Copy ray tracing output to swap chain image
-		*/
-
-		// Prepare current swap chain image as transfer destination
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			swapChain.images[frame.imageIndex],
-			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			subresourceRange);
-
-		// Prepare ray tracing output image as transfer source
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			frame.storageImage.image,
-			VK_IMAGE_LAYOUT_GENERAL,
-			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			subresourceRange);
-
-		VkImageCopy copyRegion{};
-		copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		copyRegion.srcOffset = { 0, 0, 0 };
-		copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		copyRegion.dstOffset = { 0, 0, 0 };
-		copyRegion.extent = { width, height, 1 };
-		vkCmdCopyImage(frame.commandBuffer, frame.storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[frame.imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-		// Transition swap chain image back for presentation
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			swapChain.images[frame.imageIndex],
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			subresourceRange);
-
-		// Transition ray tracing output image back to general layout
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			frame.storageImage.image,
-			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			VK_IMAGE_LAYOUT_GENERAL,
-			subresourceRange);
-#endif
 
 		drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex], frame.vertexBuffer, frame.indexBuffer);
 
@@ -1164,7 +1092,6 @@ public:
 			vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
 			vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 
-#if DIRECTRENDER
 			vks::tools::setImageLayout(
 				frame.commandBuffer,
 				swapChain.images[frame.imageIndex],
@@ -1189,62 +1116,7 @@ public:
 				VK_IMAGE_LAYOUT_GENERAL,
 				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 				subresourceRange);
-#else
-			VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-			vkCmdTraceRaysKHR(
-				frame.commandBuffer,
-				&shaderBindingTables.raygen.stridedDeviceAddressRegion,
-				&shaderBindingTables.miss.stridedDeviceAddressRegion,
-				&shaderBindingTables.hit.stridedDeviceAddressRegion,
-				&emptySbtEntry,
-				width,
-				height,
-				1);
 
-			/*
-				Copy ray tracing output to swap chain image
-			*/
-
-			// Prepare current swap chain image as transfer destination
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				swapChain.images[frame.imageIndex],
-				VK_IMAGE_LAYOUT_UNDEFINED,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				subresourceRange);
-
-			// Prepare ray tracing output image as transfer source
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				frame.storageImage.image,
-				VK_IMAGE_LAYOUT_GENERAL,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				subresourceRange);
-
-			VkImageCopy copyRegion{};
-			copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.srcOffset = { 0, 0, 0 };
-			copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.dstOffset = { 0, 0, 0 };
-			copyRegion.extent = { width, height, 1 };
-			vkCmdCopyImage(frame.commandBuffer, frame.storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[frame.imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-			// Transition swap chain image back for presentation
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				swapChain.images[frame.imageIndex],
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-				subresourceRange);
-
-			// Transition ray tracing output image back to general layout
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				frame.storageImage.image,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				VK_IMAGE_LAYOUT_GENERAL,
-				subresourceRange);
-#endif
 			drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex]);
 
 			vkCmdWriteTimestamp(frame.commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frame.timeStampQueryPool, 0);
@@ -1338,12 +1210,15 @@ public:
 		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::PreTransformVertices;
 		vkglTF::bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
-		//scene.loadFromFile(getAssetPath() + ASSET_PATH, vulkanDevice, graphicsQueue, glTFLoadingFlags);
-		//gModel.load3DGRTObject(getAssetPath() + "3DGRTModels/lego/ckpt_last.pt", vulkanDevice);
-		gModel.load3DGRTModel(getAssetPath() + "3DGRTModels/lego/export_last.ply", vulkanDevice);
+#if LOAD_GLTF
+		scene.loadFromFile(getAssetPath() + ASSET_PATH, vulkanDevice, graphicsQueue, glTFLoadingFlags);
 
 		// Cubemap texture
 		loadCubemap(getAssetPath() + CUBEMAP_TEXTURE_PATH, VK_FORMAT_R8G8B8A8_UNORM);
+#endif
+
+		//gModel.load3DGRTObject(getAssetPath() + "3DGRTModels/lego/ckpt_last.pt", vulkanDevice);
+		gModel.load3DGRTModel(getAssetPath() + "3DGRTModels/lego/export_last.ply", vulkanDevice);
 	}
 
 	bool initVulkan() {
@@ -1403,10 +1278,7 @@ public:
 		{
 			createBaseFrameObjects(frame, i++);
 			pBaseFrameObjects.push_back(&frame);
-#if !DIRECTRENDER
-			// Storage images for ray tracing output
-			createStorageImage(frame.storageImage, swapChain.colorFormat, { width, height, 1 });
-#endif
+
 			// Uniform buffers
 			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBuffer, sizeof(uniformData), &uniformData));
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStaticLight), nullptr));
@@ -1433,8 +1305,10 @@ public:
 		computeGaussianEnclosingIcosaHedron();
 
 		// Create the acceleration structures used to render the ray traced scene
-		//createBottomLevelAccelerationStructure();
-		//createTopLevelAccelerationStructure();
+#if LOAD_GLTF
+		createBottomLevelAccelerationStructure();
+		createTopLevelAccelerationStructure();
+#endif
 
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
@@ -1450,11 +1324,11 @@ public:
 	{
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		VulkanRTBase::prepareFrame(currentFrame);
-#if DIRECTRENDER
+
 		VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, swapChain.buffers[currentFrame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
 		VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(currentFrame.descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
 		vkUpdateDescriptorSets(device, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
-#endif
+
 		buildCommandBuffer(currentFrame);
 		VulkanRTBase::submitFrame(currentFrame);
 	}
@@ -1463,10 +1337,6 @@ public:
 	{
 		if (!prepared)
 			return;
-
-#if STOP_LIGHT
-		timer = 0.f;
-#endif
 
 		//vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
 		updateUniformBuffer();

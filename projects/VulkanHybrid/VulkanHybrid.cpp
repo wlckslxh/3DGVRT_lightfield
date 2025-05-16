@@ -52,9 +52,6 @@ public:
 	vks::Buffer uniformBufferOffscreen{ VK_NULL_HANDLE };
 
 	struct FrameObject : public BaseFrameObject {
-#if !DIRECTRENDER
-		StorageImage storageImage;
-#endif
 		VkDescriptorSet descriptorSetComposition{ VK_NULL_HANDLE };
 		VkCommandBuffer offscreenCommandBuffer{ VK_NULL_HANDLE };
 		VkSemaphore offscreenSemaphore{ VK_NULL_HANDLE };
@@ -169,9 +166,6 @@ public:
 			for (FrameObject& frame : frameObjects)
 			{
 				vkFreeCommandBuffers(device, cmdPool, 1, &frame.offscreenCommandBuffer);
-#if !DIRECTRENDER
-				deleteStorageImage(frame.storageImage);
-#endif
 				vkDestroySemaphore(device, frame.renderCompleteSemaphore, nullptr);
 				vkDestroySemaphore(device, frame.presentCompleteSemaphore, nullptr);
 				vkDestroySemaphore(device, frame.offscreenSemaphore, nullptr);
@@ -814,13 +808,7 @@ public:
 		VK_CHECK_RESULT(vkDeviceWaitIdle(device));
 		for (FrameObject& frame : frameObjects) {
 			// Recreate image
-#if DIRECTRENDER
 			VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, swapChain.buffers[frame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
-#else
-			createStorageImage(frame.storageImage, swapChain.colorFormat, { width, height, 1 });
-			// Update descriptor
-			VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, frame.storageImage.view, VK_IMAGE_LAYOUT_GENERAL };
-#endif
 			VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(frame.descriptorSetComposition, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
 			vkUpdateDescriptorSets(device, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
 		}
@@ -850,8 +838,6 @@ public:
 			vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayouts.composition, 0, 1, &frame.descriptorSetComposition, 0, 0);
 			vkCmdPushConstants(frame.commandBuffer, pipelineLayouts.composition, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 
-
-#if DIRECTRENDER
 			vks::tools::setImageLayout(
 				frame.commandBuffer,
 				swapChain.images[frame.imageIndex],
@@ -876,63 +862,6 @@ public:
 				VK_IMAGE_LAYOUT_GENERAL,
 				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 				subresourceRange);
-#else
-
-			VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-			vkCmdTraceRaysKHR(
-				frame.commandBuffer,
-				&shaderBindingTables.raygen.stridedDeviceAddressRegion,
-				&shaderBindingTables.miss.stridedDeviceAddressRegion,
-				&shaderBindingTables.hit.stridedDeviceAddressRegion,
-				&emptySbtEntry,
-				width,
-				height,
-				1);
-
-			/*
-				Copy ray tracing output to swap chain image
-			*/
-
-			// Prepare current swap chain image as transfer destination
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				swapChain.images[frame.imageIndex],
-				VK_IMAGE_LAYOUT_UNDEFINED,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				subresourceRange);
-
-			// Prepare ray tracing output image as transfer source
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				frame.storageImage.image,
-				VK_IMAGE_LAYOUT_GENERAL,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				subresourceRange);
-
-			VkImageCopy copyRegion{};
-			copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.srcOffset = { 0, 0, 0 };
-			copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.dstOffset = { 0, 0, 0 };
-			copyRegion.extent = { width, height, 1 };
-			vkCmdCopyImage(frame.commandBuffer, frame.storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[frame.imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-			// Transition swap chain image back for presentation
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				swapChain.images[frame.imageIndex],
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-				subresourceRange);
-
-			// Transition ray tracing output image back to general layout
-			vks::tools::setImageLayout(
-				frame.commandBuffer,
-				frame.storageImage.image,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				VK_IMAGE_LAYOUT_GENERAL,
-				subresourceRange);
-#endif
 
 			drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex], frame.vertexBuffer, frame.indexBuffer);
 
@@ -964,7 +893,6 @@ public:
 		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayouts.composition, 0, 1, &frame.descriptorSetComposition, 0, 0);
 		vkCmdPushConstants(frame.commandBuffer, pipelineLayouts.composition, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 
-#if DIRECTRENDER
 		vks::tools::setImageLayout(
 			frame.commandBuffer,
 			swapChain.images[frame.imageIndex],
@@ -989,62 +917,6 @@ public:
 			VK_IMAGE_LAYOUT_GENERAL,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			subresourceRange);
-#else
-		VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-		vkCmdTraceRaysKHR(
-			frame.commandBuffer,
-			&shaderBindingTables.raygen.stridedDeviceAddressRegion,
-			&shaderBindingTables.miss.stridedDeviceAddressRegion,
-			&shaderBindingTables.hit.stridedDeviceAddressRegion,
-			&emptySbtEntry,
-			width,
-			height,
-			1);
-
-		/*
-			Copy ray tracing output to swap chain image
-		*/
-
-		// Prepare current swap chain image as transfer destination
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			swapChain.images[frame.imageIndex],
-			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			subresourceRange);
-
-		// Prepare ray tracing output image as transfer source
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			frame.storageImage.image,
-			VK_IMAGE_LAYOUT_GENERAL,
-			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			subresourceRange);
-
-		VkImageCopy copyRegion{};
-		copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		copyRegion.srcOffset = { 0, 0, 0 };
-		copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		copyRegion.dstOffset = { 0, 0, 0 };
-		copyRegion.extent = { width, height, 1 };
-		vkCmdCopyImage(frame.commandBuffer, frame.storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[frame.imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-		// Transition swap chain image back for presentation
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			swapChain.images[frame.imageIndex],
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			subresourceRange);
-
-		// Transition ray tracing output image back to general layout
-		vks::tools::setImageLayout(
-			frame.commandBuffer,
-			frame.storageImage.image,
-			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			VK_IMAGE_LAYOUT_GENERAL,
-			subresourceRange);
-#endif
 
 		drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex], frame.vertexBuffer, frame.indexBuffer);
 
@@ -1217,11 +1089,7 @@ public:
 			accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
 			VkDescriptorImageInfo storageImageDescriptor;
-#if DIRECTRENDER
 			storageImageDescriptor = { VK_NULL_HANDLE, swapChain.buffers[frame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
-#else
-			storageImageDescriptor = { VK_NULL_HANDLE, frame.storageImage.view, VK_IMAGE_LAYOUT_GENERAL };
-#endif
 
 			// Descriptor for cube map sampler 
 			VkDescriptorImageInfo cubeMapDescriptor = vks::initializers::descriptorImageInfo(cubeMap.sampler, cubeMap.view, cubeMap.imageLayout);
@@ -1538,11 +1406,6 @@ public:
 			VkSemaphoreCreateInfo semaphoreCreateInfo = vks::initializers::semaphoreCreateInfo();
 			VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &frame.offscreenSemaphore));
 
-#if !DIRECTRENDER
-			// Storage images for ray tracing output
-			createStorageImage(frame.storageImage, swapChain.colorFormat, { width, height, 1 });
-#endif
-
 			// Uniform buffer per frame object of [Pass 1]
 			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBuffer, sizeof(uniformData), &uniformData));
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStaticLight), nullptr));
@@ -1579,11 +1442,9 @@ public:
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		VulkanRTBase::prepareFrame(currentFrame);
 
-#if DIRECTRENDER
 		VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, swapChain.buffers[currentFrame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
 		VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(currentFrame.descriptorSetComposition, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
 		vkUpdateDescriptorSets(device, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
-#endif
 
 		buildOffscreenCommandBuffer(currentFrame);
 		buildCommandBuffer(currentFrame);
@@ -1602,9 +1463,6 @@ public:
 		if (!prepared)
 			return;
 
-#if STOP_LIGHT
-		timer = 0.f;
-#endif
 		vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
 		updateUniformBufferComposition();
 		updateUniformBufferOffscreen();
