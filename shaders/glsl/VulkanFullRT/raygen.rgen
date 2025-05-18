@@ -64,8 +64,14 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 	mat4 viewInverse;
 	mat4 projInverse;
 	Light lights[numOfDynamicLights];
-	Param params;
 } ubo;
+
+layout(binding = 7, set = 0) uniform uniformBufferParams{
+	Aabb aabb;
+	float minTransmittance;
+	float hitMinGaussianResponse;
+	uint sphEvalDegree;
+}params;
 
 // gas->aabb
 //Param params;
@@ -336,12 +342,12 @@ void main()
 	uint rayHitsCount = 0;
 #endif
 
-	vec2 minMaxT = intersectAABB(ubo.params.aabb, rayOrigin.xyz, rayDirection.xyz);
+	vec2 minMaxT = intersectAABB(params.aabb, rayOrigin.xyz, rayDirection.xyz);
 	const float epsT = EPS_T;
 
 	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
 
-	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > ubo.params.minTransmittance)){
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > params.minTransmittance)){
 		// Gather k hits
 		trace(rayPayload, rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
 		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
@@ -352,19 +358,19 @@ void main()
 		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
 			const RayHit rayHit = rayPayload.hits[i];
 
-			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > ubo.params.minTransmittance)){
+			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > params.minTransmittance)){
 				const bool acceptedHit = processHit(
 					rayOrigin.xyz,
 					rayDirection.xyz,
 					rayHit.particleId,
 #if BUFFER_REFERENCE
-					ubo.params.densityBufferDeviceAddress,
-					ubo.params.sphCoefficientBufferDeviceAddress,
-					ubo.params.visibilityBufferDeviceAddress,
+					params.densityBufferDeviceAddress,
+					params.sphCoefficientBufferDeviceAddress,
+					params.visibilityBufferDeviceAddress,
 #endif
-					ubo.params.hitMinGaussianResponse,
-					ubo.params.alphaMinThreshold,
-					int(ubo.params.sphEvalDegree),
+					params.hitMinGaussianResponse,
+					ALPHA_MIN_THRESHOLD,
+					int(params.sphEvalDegree),
 					rayTransmittance,
 					rayRadiance,
 					rayHitDistance
@@ -372,7 +378,7 @@ void main()
 					,rayNormal
 #endif
 				);
-
+				
 				if(acceptedHit){
 					particleVisibilities.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
 				}

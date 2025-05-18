@@ -7,17 +7,20 @@
 
 #define NUM_OF_GAUSSIANS 1024 // This macro should be managed with Define.h
 
+/* 3dgrt parameters */
 #define EPS_T 1e-9
-#define MAX_HIT_PER_TRACE 16
+#define MAX_HIT_PER_TRACE 16	//do not change
+#define ALPHA_MIN_THRESHOLD 0.0039215686275 // "threedgrt_tracer/optixTracer.cpp" search "alphaMinThreshold" : 1.0f / 255.0f
+
 #define MAX_SPH_DEGREE 3 // "configs/render/3dgrt.yaml - particle_radiance_sph_degree"
 #define SPH_MAX_NUM_COEFFS 16	// x = MAX_SPH_DEGREE (x+1) * (x+1)
-
-#define BUFFER_REFERENCE false	// This macro should be managed with Define.h
-
-#define ENABLE_NORMALS false
-#define ENABLE_HIT_COUNTS true
+#define ENABLE_NORMALS false	// just for training
+#define ENABLE_HIT_COUNTS false
 #define PARTICLE_KERNEL_DEGREE 4 // "configs/render/3dgrt.yaml - particle_kernel_degree" : 4
 #define SURFEL_PRIMITIVE false // "configs/render/3dgrt.yaml - primitive_type" : instances -> false
+
+
+#define BUFFER_REFERENCE false	// This macro should be managed with Define.h
 
 #define INVALID_PARTICLE_ID 0xFFFFFFFF
 #define INFINITE_DISTANCE 1e20f
@@ -25,6 +28,7 @@
 #extension GL_EXT_scalar_block_layout : require
 //#extension GL_EXT_buffer_reference2 : require
 
+/* spherical harmonics coefficients */
 float SH_C0 = 0.28209479177387814f;	// sqrt(1 / (4 * pi))
 float SH_C1 = 0.4886025119029199f;	// sqrt(3 / (4 * pi))	3항 모두 같기 때문에 float값 하나
 float SH_C2[] = {
@@ -63,10 +67,9 @@ struct Param {
 	uint64_t sphCoefficientBufferDeviceAddress;
 #endif
 
-	float minTransmittance;			// "configs/render/3dgrt.yaml - max_transmittance" : 0.001
-	float hitMinGaussianResponse;	// "configs/render/3dgrt.yaml - particle_kernel_min_response" : 0.0113
-	float alphaMinThreshold;	// "threedgrt_tracer/optixTracer.cpp" search "alphaMinThreshold" : 1.0f / 255.0f
-	uint sphEvalDegree;	// (less or equal than MAX_SPH_DEGREE) "configs/base_gs.yaml - max_n_features" : 3
+	float minTransmittance;			// "configs/render/3dgrt.yaml - max_transmittance" : 0.001	(dynamic)
+	float hitMinGaussianResponse;	// "configs/render/3dgrt.yaml - particle_kernel_min_response" : 0.0113 (static)
+	uint sphEvalDegree;	// (less or equal than MAX_SPH_DEGREE) "configs/base_gs.yaml - max_n_features" : 3	(dynamic)
 };
 
 struct RayHit {

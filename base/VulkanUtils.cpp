@@ -49,6 +49,27 @@ namespace vks {
 				uniformData.lights[i].radius = scene.lights[i].radius;
 			}
 		}
+
+		//void updateParameters(Params_3DGRT& params, BaseFrameObject& currentFrame, vks::VulkanDevice* vulkanDevice, VkQueue queue) {
+		//	// mapping
+		//	vks::Buffer stagingBuffer;
+		//	stagingBuffer.size = sizeof(UniformDataStaticLight);
+		//	VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer.size, &stagingBuffer.buffer, &stagingBuffer.memory, nullptr));
+
+		//	void* data;
+		//	vkMapMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, 0, sizeof(UniformDataStaticLight), 0, &data);
+		//	memcpy(data, (void*)&params, sizeof(params));
+		//	vkUnmapMemory(vulkanDevice->logicalDevice, stagingBuffer.memory);
+
+		//	VkBufferCopy copyRegion;
+		//	copyRegion.srcOffset = 0;
+		//	copyRegion.dstOffset = 0;
+		//	copyRegion.size = stagingBuffer.size;
+		//	vulkanDevice->copyBuffer(&stagingBuffer, &currentFrame.uniformBufferParams, queue, &copyRegion);
+
+		//	vkDestroyBuffer(vulkanDevice->logicalDevice, stagingBuffer.buffer, nullptr);
+		//	vkFreeMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, nullptr);
+		//}
 	}
 }
 
