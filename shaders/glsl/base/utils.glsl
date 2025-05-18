@@ -42,3 +42,8 @@ vec2 intersectAABB(const Aabb aabb, vec3 rayOri, vec3 rayDir) {
     float minOfMax = min(tmax.x, min(tmax.y, tmax.z));
     return vec2(maxOfMin, minOfMax);
 }
+
+float sigmoid(float x)
+{
+    return 1.0f / (1.0f + exp(-x));
+}

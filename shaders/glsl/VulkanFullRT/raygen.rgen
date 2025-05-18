@@ -185,9 +185,9 @@ void fetchParticleDensity(
 	const ParticleDensity particleData = particleDensities.d[nonuniformEXT(particleIdx)];
 
 	particlePosition = particleData.position;
-	particleScale = particleData.scale;
-	particleRotation = quaternionWXYZToMatrix(particleData.quaternion);
-	particleDensity = particleData.density;
+	particleScale = exp(particleData.scale);
+	particleRotation = quaternionWXYZToMatrix(normalize(particleData.quaternion));
+	particleDensity = sigmoid(particleData.density);
 }
 
 // load spherical harmonics coefficient

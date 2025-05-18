@@ -97,11 +97,6 @@ float kernelScale(float density, float modulatedMinResponse, uint opts, float ke
     /// TODO : reshuffle the math to call powf only once
     return pow(log(minResponse) / a, 1.0f / b);
 }
-
-float sigmoid(float x)
-{
-	return 1.0f / (1.0f + exp(-x));
-}
 ///////////////////////////////////////////////
 void main()
 {	
