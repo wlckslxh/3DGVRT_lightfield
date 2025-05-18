@@ -194,9 +194,9 @@ void fetchParticleDensity(
 void fetchParticleSphCoefficients(
 	const uint particleIdx,
 	out vec3 sphCoefficients[SPH_MAX_NUM_COEFFS]) {
-	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;	// 3 : RGB
+	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;	// each has 3 elements
 	for(uint i = 0; i < SPH_MAX_NUM_COEFFS; i++){
-		uint offset = i * 3;
+		uint offset = i * 3;	// each has 3 elements
 		sphCoefficients[i] = vec3(
 			particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 0)],
             particleSphCoefficients.c[nonuniformEXT(particleOffset + offset + 1)],

@@ -1130,8 +1130,8 @@ public:
 		uniformData.viewInverse = glm::inverse(camera.matrices.view);
 		uniformData.projInverse = glm::inverse(camera.matrices.perspective);
 
-		//uniformData.params.aabb = { -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
-		uniformData.params.aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
+		uniformData.params.aabb = { -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
+		//uniformData.params.aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
 		uniformData.params.minTransmittance = 0.001f;
 		uniformData.params.hitMinGaussianResponse = 0.0113f;
 		uniformData.params.alphaMinThreshold = 1.0f / 255.0f;
@@ -1301,11 +1301,11 @@ public:
 		// allocate device memory for vertex/index buffer
 		gModel.allocateAttributeBuffers(vulkanDevice, graphicsQueue);
 		// particle density
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleDensities, sizeof(ParticleDensity), nullptr));
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleDensities, sizeof(ParticleDensity) * gModel.splatSet.size(), nullptr));
 		// particle sph coefficient
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleSphCoefficients, sizeof(ParticleSphCoefficient), nullptr));
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleSphCoefficients, sizeof(ParticleSphCoefficient) * gModel.splatSet.size(), nullptr));
 		// particle visibility
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleVisibility, sizeof(ParticleVisibility), nullptr));
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleVisibility, sizeof(ParticleVisibility) * gModel.splatSet.size(), nullptr));
 
 		createComputeDescriptorSets();
 		createComputePipeline();
