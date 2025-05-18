@@ -995,6 +995,8 @@ void VulkanRTBase::submitFrame(BaseFrameObject& frame)
 	}
 
 	frameIndex = (frameIndex + 1) % swapChain.imageCount;
+
+	vkQueueWaitIdle(graphicsQueue);
 }
 
 void VulkanRTBase::submitFrameCustom(BaseFrameObject& frame, VkCommandBuffer& commandBuffer, std::vector<VkSemaphore> waitSemaphores, std::vector<VkSemaphore> signalSemaphores, std::vector<VkPipelineStageFlags> waitStages)

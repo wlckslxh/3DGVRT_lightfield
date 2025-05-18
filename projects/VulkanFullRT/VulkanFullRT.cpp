@@ -881,8 +881,7 @@ public:
 			accelerationStructureWrite.descriptorCount = 1;
 			accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-			VkDescriptorImageInfo storageImageDescriptor;
-			storageImageDescriptor = { VK_NULL_HANDLE, swapChain.buffers[frame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
+			VkDescriptorImageInfo storageImageDescriptor = { VK_NULL_HANDLE, swapChain.buffers[frame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
 
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				// Binding 0: Top level acceleration structure
@@ -1130,8 +1129,8 @@ public:
 		uniformData.viewInverse = glm::inverse(camera.matrices.view);
 		uniformData.projInverse = glm::inverse(camera.matrices.perspective);
 
-		uniformData.params.aabb = { -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
-		//uniformData.params.aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
+		//uniformData.params.aabb = { -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
+		uniformData.params.aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
 		uniformData.params.minTransmittance = 0.001f;
 		uniformData.params.hitMinGaussianResponse = 0.0113f;
 		uniformData.params.alphaMinThreshold = 1.0f / 255.0f;
