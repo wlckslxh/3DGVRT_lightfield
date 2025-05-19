@@ -34,19 +34,19 @@ namespace vks {
 		void updateLightDynamicInfo(UniformData& uniformData, vkglTF::Model &scene, float timer)
 		{
 			for (uint32_t i = 0; i < STATIC_LIGHT_OFFSET; i++) {
-				// light position
-				glm::vec4 lightPos = scene.lights[i].matrix * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-
-#if ASSET != 1
-				uniformData.lights[i].position = glm::vec4(lightPos.x + cos(glm::radians(timer * 360.0f)) * 30.0f, lightPos.y, lightPos.z + sin(glm::radians(timer * 360.0f)) * 30.0f, 1.0f);
-#elif ASSET == 1
-				uniformData.lights[i].position = glm::vec4(lightPos.x + cos(glm::radians(timer * 360.0f)) * 25.0f, lightPos.y, lightPos.z + sin(glm::radians(timer * 360.0f)) * 5.0f, 1.0f);
-#endif
-
-				// the rest
-				uniformData.lights[i].color = scene.lights[i].color;
-				uniformData.lights[i].type = scene.lights[i].type;
-				uniformData.lights[i].radius = scene.lights[i].radius;
+//				// light position
+//				glm::vec4 lightPos = scene.lights[i].matrix * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+//
+//#if ASSET != 1
+//				uniformData.lights[i].position = glm::vec4(lightPos.x + cos(glm::radians(timer * 360.0f)) * 30.0f, lightPos.y, lightPos.z + sin(glm::radians(timer * 360.0f)) * 30.0f, 1.0f);
+//#elif ASSET == 1
+//				uniformData.lights[i].position = glm::vec4(lightPos.x + cos(glm::radians(timer * 360.0f)) * 25.0f, lightPos.y, lightPos.z + sin(glm::radians(timer * 360.0f)) * 5.0f, 1.0f);
+//#endif
+//
+//				// the rest
+//				uniformData.lights[i].color = scene.lights[i].color;
+//				uniformData.lights[i].type = scene.lights[i].type;
+//				uniformData.lights[i].radius = scene.lights[i].radius;
 			}
 		}
 	}

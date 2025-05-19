@@ -20,14 +20,6 @@
 #include "../base/3dgs.glsl"
 #include "../base/utils.glsl"
 
-/*** 3dgrt style ***/
-void initializeRayPayload(RayPayload rayPayload){
-	for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
-		rayPayload.hits[i].particleId = INVALID_PARTICLE_ID;
-		rayPayload.hits[i].dist = INFINITE_DISTANCE;
-	}
-}
-
 /*** playground style ***/
 //struct RayData{
 //	vec3 radiance;
@@ -62,7 +54,7 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 {
 	mat4 viewInverse;
 	mat4 projInverse;
-	Light lights[numOfDynamicLights];
+	//Light lights[numOfDynamicLights];
 	Param params;
 } ubo;
 layout(binding = 3, set = 0) uniform uniformBufferStaticLight
@@ -99,8 +91,16 @@ layout(std430, binding = 6, set = 0) buffer ParticleVisibility {
 //	return accumulated_radiance;
 //}
 
-void trace(RayPayload rayPayload, vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
-	initializeRayPayload(rayPayload);
+/*** 3dgrt style ***/
+void initializeRayPayload(){
+	for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+		rayPayload.hits[i].particleId = INVALID_PARTICLE_ID;
+		rayPayload.hits[i].dist = INFINITE_DISTANCE;
+	}
+}
+
+void trace(vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
+	initializeRayPayload();
 	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
 //	traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
 }
@@ -155,7 +155,7 @@ void fetchParticleDensity(
 	out vec3 particleScale,
 	out mat3 particleRotation,
 	out float particleDensity){
-	const ParticleDensity particleData = Densities[densityBufferDeviceAddress].d[nonuniformEXT(particleIdx)];
+	const ParticleDensity particleData = Densities[nonuniformEXT(densityBufferDeviceAddress)].d[nonuniformEXT(particleIdx)];
 
 	particlePosition = particleData.position;
 	particleScale = particleData.scale;
@@ -171,9 +171,9 @@ void fetchParticleSphCoefficients(
 	for(unsigned int i = 0; i < SPH_MAX_NUM_COEFFS; i++){
 		const int offset = i * 3;
 		sphCoefficients[i] = vec3(
-			particlesSphCoefficients[particleOffset + offset + 0],
-            particlesSphCoefficients[particleOffset + offset + 1],
-            particlesSphCoefficients[particleOffset + offset + 2]);
+			particlesSphCoefficients[nonuniformEXT(particleOffset + offset + 0)],
+            particlesSphCoefficients[nonuniformEXT(particleOffset + offset + 1)],
+            particlesSphCoefficients[nonuniformEXT(particleOffset + offset + 2]);
 	}
 }
 #else
@@ -345,16 +345,17 @@ void main()
 
 	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
 
-	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > ubo.params.minTransmittance)){
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > ubo.params.minTransmittance))
+	{
 		// Gather k hits
-		trace(rayPayload, rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
+		trace(rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
 		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
 			break;
 		}
 
 		// Process k hits
-		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
-			const RayHit rayHit = rayPayload.hits[i];
+        for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+			const RayHit rayHit = rayPayload.hits[nonuniformEXT(i)];
 
 			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > ubo.params.minTransmittance)){
 				const bool acceptedHit = processHit(
@@ -387,15 +388,6 @@ void main()
 				rayHitsCount += acceptedHit ? 1 : 0;
 #endif
 			}
-		}
-
-		if (rayRadiance == vec3(0.0f)) {
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.0f, 0.0f, 0.0f, 1.0f));
-			return;
-		}
-		else {
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
-			return;
 		}
 	}
 
