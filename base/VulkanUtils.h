@@ -32,8 +32,8 @@ namespace vks {
 			float maxX, maxY, maxZ;
 		};
 
-		struct Param {
-			alignas(16) Aabb aabb = { -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
+		struct Params3DGRT {
+			alignas(16) Aabb aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
 
 #if BUFFER_REFERENCE
 			uint64_t densityBufferDeviceAddress;
@@ -41,7 +41,6 @@ namespace vks {
 #endif
 			alignas(16) float minTransmittance = 0.001f; // to be separated to Config.h?
 			alignas(4) float hitMinGaussianResponse = 0.0113f;	// particle kernel min response. to be separated to Config.h?
-			alignas(4) float alphaMinThreshold = 1.0f / 255.0f; // to be separated to Config.h?
 			alignas(4) unsigned int sphEvalDegree = 0;	// n active features. to be separated to Config.h?
 		};
 
@@ -49,7 +48,7 @@ namespace vks {
 			alignas(16) glm::mat4 viewInverse;
 			alignas(16) glm::mat4 projInverse;
 			//alignas(16) Light lights[NUM_OF_DYNAMIC_LIGHTS];
-			alignas(16) Param params;
+			// alignas(16) Params3DGRT params;
 		};
 
 		struct UniformDataStaticLight {
@@ -65,5 +64,6 @@ namespace vks {
 
 		void updateLightStaticInfo(UniformDataStaticLight& uniformDataStaticLight, BaseFrameObject& currentFrame, vkglTF::Model &scene, vks::VulkanDevice *vulkanDevice, VkQueue graphicsQueue);
 		void updateLightDynamicInfo(UniformData& uniformData, vkglTF::Model& scene, float timer);
+		void updateParameters(Params3DGRT& params, BaseFrameObject& currentFrame, vks::VulkanDevice* vulkanDevice, VkQueue queue);
 	}
 }
