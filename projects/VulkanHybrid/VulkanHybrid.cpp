@@ -22,8 +22,8 @@ public:
 		glm::mat4 modelMatrixInvTrans;
 	} uniformDataOffscreen;
 
-	vks::utils::UniformData uniformData;
-	vks::utils::UniformDataStaticLight uniformDataStaticLight;
+	vks::utils::UniformDataDynamic uniformData;
+	vks::utils::UniformDataStatic uniformDataStaticLight;
 
 	struct SpecializationData {
 		uint32_t numOfLights = NUM_OF_LIGHTS_SUPPORTED;
@@ -1408,7 +1408,7 @@ public:
 
 			// Uniform buffer per frame object of [Pass 1]
 			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBuffer, sizeof(uniformData), &uniformData));
-			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStaticLight), nullptr));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStatic), nullptr));
 			vks::utils::updateLightStaticInfo(uniformDataStaticLight, frame, scene, vulkanDevice, graphicsQueue);
 
 			// Time Stamp for measuring performance.

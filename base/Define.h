@@ -61,24 +61,24 @@
 #define CUBEMAP_TEXTURE_PATH "cubeMapTextures/blueSky.ktx"
 
 #if ASSET == 0
-#define NUM_OF_LIGHTS_SUPPORTED 32
+#define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1	
-#define NUM_OF_STATIC_LIGHTS 31
-#define STATIC_LIGHT_OFFSET 1
+#define NUM_OF_STATIC_LIGHTS 1
+#define STATIC_LIGHT_OFFSET 0
 #elif ASSET == 1
 #define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1		
 #define NUM_OF_STATIC_LIGHTS 1		// for convenience
-#define STATIC_LIGHT_OFFSET 1
+#define STATIC_LIGHT_OFFSET 0
 #elif ASSET == 4
-#define NUM_OF_LIGHTS_SUPPORTED 48
+#define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1	 // temporarily assigned value
-#define NUM_OF_STATIC_LIGHTS 48	// temporarily assigned value
+#define NUM_OF_STATIC_LIGHTS 1	// temporarily assigned value
 #define STATIC_LIGHT_OFFSET 0
 #else
 #define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1		// for convenience
-#define NUM_OF_STATIC_LIGHTS 1	
+#define NUM_OF_STATIC_LIGHTS 1
 #define STATIC_LIGHT_OFFSET 0
 #endif
 

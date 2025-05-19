@@ -52,9 +52,8 @@ public:
 		ShaderBindingTable hit;
 	} shaderBindingTables;
 
-	vks::utils::UniformData uniformData;
-	vks::utils::Params3DGRT params3dgrt;
-	vks::utils::UniformDataStaticLight uniformDataStaticLight;
+	vks::utils::UniformDataDynamic uniformDataDynamic;
+	vks::utils::UniformDataStatic uniformDataStatic;
 	vks::utils::ComputeUniformData computeUniformData;
 
 	struct SpecializationData {
@@ -830,7 +829,6 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * swapChain.imageCount),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * swapChain.imageCount),
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // compute pipeline + ray tracing pipeline
 
@@ -858,7 +856,6 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(
 				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 6),
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 7),
 		};
 
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -898,7 +895,6 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &particleDensities.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &particleSphCoefficients.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &particleVisibility.descriptor),
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 7, &frame.uniformBufferParams.descriptor),
 			};
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
@@ -1130,11 +1126,11 @@ public:
 
 	void updateUniformBuffer()
 	{
-		uniformData.viewInverse = glm::inverse(camera.matrices.view);
-		uniformData.projInverse = glm::inverse(camera.matrices.perspective);
+		uniformDataDynamic.viewInverse = glm::inverse(camera.matrices.view);
+		uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
 
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
-		memcpy(currentFrame.uniformBuffer.mapped, &uniformData, sizeof(uniformData));
+		memcpy(currentFrame.uniformBuffer.mapped, &uniformDataDynamic, sizeof(uniformDataDynamic));
 	}
 
 	void updateComputeUniformBuffer()
@@ -1283,15 +1279,12 @@ public:
 			pBaseFrameObjects.push_back(&frame);
 
 			// Uniform buffers
-			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBuffer, sizeof(uniformData), &uniformData));
-			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStaticLight), nullptr));
-			
-			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBufferParams, sizeof(vks::utils::Params3DGRT), nullptr));
-			vks::utils::updateParameters(params3dgrt, frame, vulkanDevice, graphicsQueue);
+			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.uniformBuffer, sizeof(uniformDataDynamic), &uniformDataDynamic));
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStatic), nullptr));
+			vks::utils::updateUniformBufferStatic(uniformDataStatic, frame, vulkanDevice, graphicsQueue);
 			//VkBufferUsageFlags usageFlags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 			//VkMemoryPropertyFlags memoryFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			//vulkanDevice->createAndCopyToDeviceBuffer(&params3dgrt, frame.uniformBufferParams.buffer, frame.uniformBufferParams.memory, sizeof(vks::utils::Params3DGRT), graphicsQueue, usageFlags, memoryFlags);
-			//vks::utils::updateLightStaticInfo(uniformDataStaticLight, frame, scene, vulkanDevice, graphicsQueue);
 
 			// Time Stamp for measuring performance.
 			setupTimeStampQueries(frame, timeStampCountPerFrame);

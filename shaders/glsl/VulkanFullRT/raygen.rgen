@@ -11,6 +11,7 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_scalar_block_layout : require
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
@@ -55,29 +56,23 @@ layout(binding = 2, set = 0) uniform uniformBuffer
 	mat4 viewInverse;
 	mat4 projInverse;
 	//Light lights[numOfDynamicLights];
-	//Param params;
-} ubo;
-layout(binding = 3, set = 0) uniform uniformBufferStaticLight
+} uboDynamic;
+layout(binding = 3, set = 0) uniform uniformBufferStatic
 {
 	Light lights[numOfStaticLights];
-} uboStaticLight;
-
-layout(binding = 7, set = 0) uniform uniformBufferParams{
 	Aabb aabb;
 	float minTransmittance;
 	float hitMinGaussianResponse;
 	uint sphEvalDegree;
-}params;
+} uboStatic;
 
-// gas->aabb
-//Param params;
 #if !BUFFER_REFERENCE
 layout(std140, binding = 4, set = 0) buffer ParticleDensities {
 	ParticleDensity d[];
 } particleDensities;
 layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
 	float c[];
-} particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. params.particleRadiance
+} particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. uboStatic.particleRadiance
 layout(std430, binding = 6, set = 0) buffer ParticleVisibility {
 	float v[];
 } particleVisibilities;
@@ -331,9 +326,9 @@ void main()
 	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);	// pixel position
 	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);	// pixel position in WdC
 	vec2 d = inUV * 2.0 - 1.0;	// pixel position in NDC
-	vec4 rayOrigin = ubo.viewInverse[3];
-	vec4 target = ubo.projInverse * vec4(d.x, d.y, 1.0f, 1.0f) ;	// (pixel position in EC) / Wc
-	vec4 rayDirection = normalize(ubo.viewInverse * vec4(target.xyz, 0.0f));
+	vec4 rayOrigin = uboDynamic.viewInverse[3];
+	vec4 target = uboDynamic.projInverse * vec4(d.x, d.y, 1.0f, 1.0f) ;	// (pixel position in EC) / Wc
+	vec4 rayDirection = normalize(uboDynamic.viewInverse * vec4(target.xyz, 0.0f));
 
 	/*** 3dgrt style ***/
 	vec3 rayRadiance = vec3(0.0f);
@@ -347,12 +342,12 @@ void main()
 	uint rayHitsCount = 0;
 #endif
 
-	vec2 minMaxT = intersectAABB(params.aabb, rayOrigin.xyz, rayDirection.xyz);
+	vec2 minMaxT = intersectAABB(uboStatic.aabb, rayOrigin.xyz, rayDirection.xyz);
 	const float epsT = EPS_T;
 
 	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
 
-	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > params.minTransmittance)){
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance)){
 		// Gather k hits
 		trace(rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
 		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
@@ -363,19 +358,19 @@ void main()
         for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
 			const RayHit rayHit = rayPayload.hits[nonuniformEXT(i)];
 
-			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > params.minTransmittance)){
+			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > uboStatic.minTransmittance)){
 				const bool acceptedHit = processHit(
 					rayOrigin.xyz,
 					rayDirection.xyz,
 					rayHit.particleId,
 #if BUFFER_REFERENCE
-					params.densityBufferDeviceAddress,
-					params.sphCoefficientBufferDeviceAddress,
-					params.visibilityBufferDeviceAddress,
+					uboStatic.densityBufferDeviceAddress,
+					uboStatic.sphCoefficientBufferDeviceAddress,
+					uboStatic.visibilityBufferDeviceAddress,
 #endif
-					params.hitMinGaussianResponse,
+					uboStatic.hitMinGaussianResponse,
 					ALPHA_MIN_THRESHOLD,
-					int(params.sphEvalDegree),
+					int(uboStatic.sphEvalDegree),
 					rayTransmittance,
 					rayRadiance,
 					rayHitDistance
