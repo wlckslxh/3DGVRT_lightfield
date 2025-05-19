@@ -30,7 +30,7 @@
 
 /* spherical harmonics coefficients */
 float SH_C0 = 0.28209479177387814f;	// sqrt(1 / (4 * pi))
-float SH_C1 = 0.4886025119029199f;	// sqrt(3 / (4 * pi))	3�� ��� ���� ������ float�� �ϳ�
+float SH_C1 = 0.4886025119029199f;	// sqrt(3 / (4 * pi))	3항 모두 같기 때문에 float값 하나
 float SH_C2[] = {
 	1.0925484305920792f,			// sqrt(15 / (4 * pi))
 	-1.0925484305920792f,			// sqrt(15 / (4 * pi))
