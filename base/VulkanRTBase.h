@@ -86,11 +86,15 @@ struct BaseFrameObject
 	VkSemaphore presentCompleteSemaphore;
 	uint32_t imageIndex;
 	vks::Buffer uniformBuffer;
-	vks::Buffer uniformBufferStaticLight;
+	vks::Buffer uniformBufferStatic;
 	VkQueryPool timeStampQueryPool;
 	std::vector<uint64_t> timeStamps;
 	vks::Buffer vertexBuffer;
 	vks::Buffer indexBuffer;
+
+	/* 3DGRT */
+	vks::Buffer uniformBufferParams;
+	// hmm..
 };
 
 class VulkanRTBase
@@ -221,6 +225,11 @@ public:
 		alignas(4) float alpha = 0.6f;
 		alignas(4) float beta = 0.8f;
 		alignas(4) float gamma = 0.2f;
+	};
+
+	struct Aabb {
+		float minX, minY, minZ;
+		float maxX, maxY, maxZ;
 	};
 
 	struct PushConstants {

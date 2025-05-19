@@ -17,15 +17,12 @@
 #define MEASURE_FRAME 2000
 #endif
 
-#define STOP_LIGHT 0
-
 #define ASSET 0
+#define LOAD_GLTF 0
+
 #define MULTIQUEUE 0	// 0 is Default
-#define DIRECTRENDER 1	// 1 is Default
 #define TIMER_CORRECTION 1
 #define TEXTURE_COMPRESSION 1
-
-#define ANY_HIT 0	// This macro should be managed with define.glsl
 
 #define USE_ANIMATION 0 // 0 is Default
 
@@ -64,23 +61,29 @@
 #define CUBEMAP_TEXTURE_PATH "cubeMapTextures/blueSky.ktx"
 
 #if ASSET == 0
-#define NUM_OF_LIGHTS_SUPPORTED 32
+#define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1	
-#define NUM_OF_STATIC_LIGHTS 31
-#define STATIC_LIGHT_OFFSET 1
+#define NUM_OF_STATIC_LIGHTS 1
+#define STATIC_LIGHT_OFFSET 0
 #elif ASSET == 1
 #define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1		
 #define NUM_OF_STATIC_LIGHTS 1		// for convenience
-#define STATIC_LIGHT_OFFSET 1
+#define STATIC_LIGHT_OFFSET 0
 #elif ASSET == 4
-#define NUM_OF_LIGHTS_SUPPORTED 48
+#define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1	 // temporarily assigned value
-#define NUM_OF_STATIC_LIGHTS 48	// temporarily assigned value
+#define NUM_OF_STATIC_LIGHTS 1	// temporarily assigned value
 #define STATIC_LIGHT_OFFSET 0
 #else
 #define NUM_OF_LIGHTS_SUPPORTED 1
 #define NUM_OF_DYNAMIC_LIGHTS 1		// for convenience
-#define NUM_OF_STATIC_LIGHTS 1	
+#define NUM_OF_STATIC_LIGHTS 1
 #define STATIC_LIGHT_OFFSET 0
 #endif
+
+/*** 3DGS ***/
+#define BUFFER_REFERENCE false		// This macro should be managed with 3dgs.glsl
+#define NUM_OF_GAUSSIANS 1024	// This macro should be managed with 3dgs.glsl
+#define MAX_N_FEATURES 3
+#define SPECULAR_DIMENSION 3 * ((MAX_N_FEATURES + 1) * (MAX_N_FEATURES + 1) - 1)

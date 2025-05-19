@@ -97,6 +97,7 @@ struct VulkanDevice
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool begin = false);
 	// extended version for using flags of command buffer
 	void copyBuffer(vks::Buffer* src, vks::Buffer* dst, VkQueue queue, VkCommandBufferUsageFlagBits flags, VkBufferCopy* copyRegion = nullptr);
+	void copyBuffer(void* data, vks::Buffer* dst, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool pool, bool begin, VkCommandBufferUsageFlagBits flags);
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool begin, VkCommandBufferUsageFlagBits flags);
 
@@ -104,5 +105,7 @@ struct VulkanDevice
 	void            flushCommandBuffer(VkCommandBuffer commandBuffer, VkQueue queue, bool free = true);
 	bool            extensionSupported(std::string extension);
 	VkFormat        getSupportedDepthFormat(bool checkSamplingSupport);
+
+	void createAndCopyToDeviceBuffer(void* data, VkBuffer& buffer, VkDeviceMemory& memory, size_t bufferSize, VkQueue queue, VkBufferUsageFlags usageFlags = 0x0, VkMemoryPropertyFlags memoryFlags = 0x0);
 };
 }        // namespace vks
