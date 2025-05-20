@@ -200,8 +200,10 @@ public:
 	bool prepared = false;
 	bool resized = false;
 	bool viewUpdated = false;
-	uint32_t width = 2560;
-	uint32_t height = 1440;
+	//uint32_t width = 2560;
+	//uint32_t height = 1440;
+	uint32_t width = 1920;
+	uint32_t height = 1080;
 	float initialDistance;
 	/*
 	* List of resolutions
@@ -512,7 +514,7 @@ public:
 	void loadCubemap(std::string filename, VkFormat format);
 
 	// camera setting
-	void initCamera();
+	void initCamera(Camera::DatasetType type = Camera::DatasetType::none, std::string path = NULL);
 	void setCamera(uint32_t camIdx);
 };
 

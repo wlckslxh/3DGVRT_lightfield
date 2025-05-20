@@ -14,11 +14,17 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+
+#include "LoadCamera.hpp"
+#include "Define.h"
+
 class Camera
 {
 private:
 	float fov;
 	float znear, zfar;
+
+	CameraLoader cameraLoader;
 
 	void updateViewMatrix()
 	{
@@ -41,10 +47,11 @@ private:
 		if (matrices.view != currentMatrix) {
 			updated = true;
 		}
-
 	};
+
 public:
 	enum CameraType { lookat, firstperson, SG_camera, cameraSize};
+	enum DatasetType {none, nerf, collmap};
 	CameraType type = CameraType::lookat;
 	glm::vec3 rotation = glm::vec3();
 	glm::vec3 position = glm::vec3();
@@ -71,6 +78,32 @@ public:
 		bool forward = false;
 		bool backward = false;
 	} keys;
+
+	void setNearFar(float _znear, float _zfar) {
+		znear = _znear;
+		zfar = _zfar;
+	}
+
+	void setNerfCamera(uint32_t idx) {
+		CameraFrame* frame = &cameraLoader.nerfCameras.frames[idx];
+		matrices.view = frame->transformMatrix;
+		//matrices.perspective = cameraLoader.nerfCameras.projectionMatrix;
+	}
+
+	void setDatasetCamera(DatasetType type, uint32_t idx, float aspect) {
+		if (type == nerf) {
+			setPerspective(cameraLoader.fovy, aspect, znear, zfar);
+			setPerspective(FOV_Y, aspect, znear, zfar);
+			setNerfCamera(idx);
+		}
+	}
+
+	void loadDatasetCamera(DatasetType type, string path, uint32_t width, uint32_t height) {
+		if (type == nerf) {
+			cameraLoader.loadNerfCameraData(path, width, height, znear, zfar);
+			//cameraLoader.PrintCameraData(cameraLoader.nerfCameras);
+		}
+	}
 
 	void rotateAxis(float rad_angle, glm::vec3* u, glm::vec3* v, glm::vec3* n) {  // rotate u, v->n
 		float sina, cosa;
@@ -246,7 +279,7 @@ public:
 			}
 			}
 		}
-		updateViewMatrix();
+		//updateViewMatrix();
 	};
 
 	// Update camera passing separate axis data (gamepad)

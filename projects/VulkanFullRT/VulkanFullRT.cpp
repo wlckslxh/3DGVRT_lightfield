@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Sogang Univ, Graphics Lab, 2024
  * 
  * Abura Soba, 2025
@@ -127,7 +127,7 @@ public:
 	VulkanFullRT() : VulkanRTCommon()
 	{
 		title = "Abura Soba - Vulkan Full Ray Tracing";
-		initCamera();
+		initCamera(Camera::DatasetType::nerf, getAssetPath() + "3DGRTModels/lego/transforms_val.json");
 	}
 
 	~VulkanFullRT()
