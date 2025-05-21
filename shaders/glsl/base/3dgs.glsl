@@ -29,15 +29,15 @@
 //#extension GL_EXT_buffer_reference2 : require
 
 /* spherical harmonics coefficients */
-float SH_C0 = 0.28209479177387814f;	// sqrt(1 / (4 * pi))
-float SH_C1 = 0.4886025119029199f;	// sqrt(3 / (4 * pi))	3항 모두 같기 때문에 float값 하나
-float SH_C2[] = {
+const float SH_C0 = 0.28209479177387814f;	// sqrt(1 / (4 * pi))
+const float SH_C1 = 0.4886025119029199f;	// sqrt(3 / (4 * pi))	3항 모두 같기 때문에 float값 하나
+const float SH_C2[] = {
 	1.0925484305920792f,			// sqrt(15 / (4 * pi))
 	-1.0925484305920792f,			// sqrt(15 / (4 * pi))
 	0.31539156525252005f,			// sqrt(5 / (16 * pi))
 	-1.0925484305920792f,			// sqrt(15 / (4 * pi))
 	0.5462742152960396f };			// sqrt(15 / (16 * pi))
-float SH_C3[] = {
+const float SH_C3[] = {
 	-0.5900435899266435f,			// sqrt(35 / (32 * pi))
 	2.890611442640554f,				// sqrt(105 / (4 * pi))
 	-0.4570457994644658f,			// sqrt(21 / (64 * pi))
