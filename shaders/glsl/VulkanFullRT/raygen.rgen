@@ -104,7 +104,7 @@ void initializeRayPayload(){
 void trace(vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
 	initializeRayPayload();
 	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
-//	traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
+	//traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT|gl_RayFlagsCullBackFacingTrianglesEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
 }
 
 // ��ƼŬ�� �ֺ��� �ִ� ���� ����
@@ -167,7 +167,7 @@ void fetchParticleDensity(
 
 void fetchParticleSphCoefficients(
 	const uint particleIdx,
-	const float sphCoefficientBufferDeviceAddress,
+	//const float sphCoefficientBufferDeviceAddress,
 	out vec3 sphCoefficients[]) {
 	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;
 	for(unsigned int i = 0; i < SPH_MAX_NUM_COEFFS; i++){
@@ -188,9 +188,9 @@ void fetchParticleDensity(
 	const ParticleDensity particleData = particleDensities.d[nonuniformEXT(particleIdx)];
 
 	particlePosition = particleData.position;
-	particleScale = exp(particleData.scale);
-	particleRotation = quaternionWXYZToMatrix(normalize(particleData.quaternion));
-	particleDensity = sigmoid(particleData.density);
+	particleScale = particleData.scale;
+	particleRotation = quaternionWXYZToMatrix(particleData.quaternion);
+	particleDensity = particleData.density;
 }
 
 // load spherical harmonics coefficient
@@ -212,7 +212,7 @@ void fetchParticleSphCoefficients(
 // not a special algorithm
 // algorithm from spherical harmonics
 // "parametric radiance function" in paper
-vec3 radianceFromSpH(int deg, const vec3 sphCoefficients[SPH_MAX_NUM_COEFFS], const vec3 rdir, bool clamped){
+vec3 radianceFromSpH(uint deg, const vec3 sphCoefficients[SPH_MAX_NUM_COEFFS], const vec3 rdir, bool clamped){
 	vec3 rad = SH_C0 * sphCoefficients[0];
 	if(deg > 0){
 		const vec3 dir = rdir;
@@ -253,7 +253,7 @@ bool processHit(
 #endif
 	float minParticleKernelDensity,
 	float minParticleAlpha,
-	int sphEvalDegree,
+	uint sphEvalDegree,
 	inout float transmittance,
 	inout vec3 radiance,
 	inout float depth
@@ -291,6 +291,7 @@ bool processHit(
 	const float galpha = min(0.99f, gres * particleDensity);
 
 	const bool acceptHit = (gres > minParticleKernelDensity) && (galpha > minParticleAlpha);
+
 	if (acceptHit) {
         const float weight = galpha * (transmittance);
 
@@ -300,9 +301,9 @@ bool processHit(
 		vec3 sphCoefficients[SPH_MAX_NUM_COEFFS];
 		fetchParticleSphCoefficients(
 			particleIdx,
-#if BUFFER_REFERENCE
-			sphCoefficientBufferDeviceAddress,
-#endif
+//#if BUFFER_REFERENCE
+//			sphCoefficientBufferDeviceAddress,
+//#endif
 			sphCoefficients);
 		const vec3 grad = radianceFromSpH(sphEvalDegree, sphCoefficients, rayDirection, true);
 
@@ -310,11 +311,11 @@ bool processHit(
 		transmittance *= (1 - galpha);
 		depth += hitT * weight;
 
-#if ENABLE_NORMALS
-		const float ellispoidSqRadius = 9.0f;
-		const vec3 particleScaleRotated = (particleRotation * particleScale);
-		normal += weight * (SURFEL_PRIMITIVE ? vec3(0, 0, (grd.z > 0 ? 1 : -1) * particleScaleRotated.z) : safe_normalize((gro + grd * (dot(grd, -1 * gro) - sqrt(ellispoidSqRadius - grayDist))) * particleScaleRotated));
-#endif
+//#if ENABLE_NORMALS
+//		const float ellispoidSqRadius = 9.0f;
+//		const vec3 particleScaleRotated = (particleRotation * particleScale);
+//		normal += weight * (SURFEL_PRIMITIVE ? vec3(0, 0, (grd.z > 0 ? 1 : -1) * particleScaleRotated.z) : safe_normalize((gro + grd * (dot(grd, -1 * gro) - sqrt(ellispoidSqRadius - grayDist))) * particleScaleRotated));
+//#endif
 	}
 
 	return acceptHit;
@@ -370,7 +371,7 @@ void main()
 #endif
 					uboStatic.hitMinGaussianResponse,
 					ALPHA_MIN_THRESHOLD,
-					int(uboStatic.sphEvalDegree),
+					uboStatic.sphEvalDegree,
 					rayTransmittance,
 					rayRadiance,
 					rayHitDistance
@@ -378,10 +379,6 @@ void main()
 					,rayNormal
 #endif
 				);
-				
-				if(acceptedHit){
-					particleVisibilities.v[nonuniformEXT(rayHit.particleId)] = 1.0f;
-				}
 
 				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
 
@@ -392,7 +389,6 @@ void main()
 		}
 	}
 
-    // enough?
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
 
 	/*** playground style ***/

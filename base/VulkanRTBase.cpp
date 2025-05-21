@@ -1,4 +1,4 @@
-﻿/*
+/*
 * Vulkan RT base class
 * 
 * Graphics Lab, Sogang Univ
@@ -3709,31 +3709,21 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 {
 #if ASSET == 0
 	switch (camIdx) {
-	//case 0:
-	//	camera.setTranslation(glm::vec3(1.509223, 9.325905, 8.422721));
-	//	camera.setRotation(glm::vec3(-12.999950, 15.799769, 2.337500));
-	//	break;
-	//case 1:
-	//	camera.setTranslation(glm::vec3(8.287917, 3.804885, 34.659367));
-	//	camera.setRotation(glm::vec3(1.075014, -303.599152, 0.000000));
-	//	break;
-	//case 2:
-	//	camera.setTranslation(glm::vec3(-0.084632, 6.773565, 42.727455));
-	//	camera.setRotation(glm::vec3(-21.699944, 181.598755, 0.000000));
-	//	break;
 	case 0:
 		//camera.setTranslation(glm::vec3(1.509223, 9.325905, 8.422721));
 		//camera.setRotation(glm::vec3(-12.999950, 15.799769, 2.337500));
 		camera.setTranslation(glm::vec3(0.0f, -10.0f, 0.0f));
 		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+		// camera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
+		// camera.setRotation(glm::vec3(0.000000, 0.000000, 0.000000));
 		break;
 	case 1:
-		camera.setTranslation(glm::vec3(8.287917, 3.804885, 34.659367));
-		camera.setRotation(glm::vec3(1.075014, -303.599152, 0.000000));
+		camera.setTranslation(glm::vec3(-2.964525, -1.904862, 3.256133));
+		camera.setRotation(glm::vec3(24.400002, -36.774998, -0.187500));
 		break;
 	case 2:
-		camera.setTranslation(glm::vec3(-0.084632, 6.773565, 42.727455));
-		camera.setRotation(glm::vec3(-21.699944, 181.598755, 0.000000));
+		camera.setTranslation(glm::vec3(-3.914991, 0.601804, -0.239344));
+		camera.setRotation(glm::vec3(-3.199999, -88.599998, 0.000000));
 		break;
 	}
 #elif ASSET == 1
