@@ -1773,9 +1773,15 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		short wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 
 		if (camera.type == Camera::SG_camera) {
+#if Y_IS_UP
 			glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 			glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
 			glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
+#else N_IS_UP
+			glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
+			glm::vec3 vVec = glm::vec3(0.0f, 0.0f, 1.0f);
+			glm::vec3 nVec = glm::vec3(0.0f, -1.0f, 0.0f);
+#endif
 
 			if (glm::radians(camera.rotation.y) != 0)
 				camera.rotateAxis(glm::radians(camera.rotation.y), &vVec, &nVec, &uVec);
@@ -3718,7 +3724,7 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 	case 0:
 		//camera.setTranslation(glm::vec3(1.509223, 9.325905, 8.422721));
 		//camera.setRotation(glm::vec3(-12.999950, 15.799769, 2.337500));
-		camera.setTranslation(glm::vec3(0.0f, 0.0f, 20.0f));
+		camera.setTranslation(glm::vec3(0.0f, -10.0f, 0.0f));
 		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 		break;
 	case 1:

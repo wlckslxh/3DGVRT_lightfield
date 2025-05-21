@@ -36,27 +36,24 @@ void main(){
 	RayHit hit = RayHit(gl_PrimitiveID / 20, gl_HitTEXT);
 
 	if(hit.dist < rayPayload.hits[MAX_HIT_PER_TRACE - 1].dist){
-#pragma unroll
-		for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
-			compareAndSwapHitPayloadValue(hit, i);
-		}
+
 		/* for loop unroll test */
-		//	compareAndSwapHitPayloadValue(hit, 0);
-		//	compareAndSwapHitPayloadValue(hit, 1);
-		//	compareAndSwapHitPayloadValue(hit, 2);
-		//	compareAndSwapHitPayloadValue(hit, 3);
-		//	compareAndSwapHitPayloadValue(hit, 4);
-		//	compareAndSwapHitPayloadValue(hit, 5);
-		//	compareAndSwapHitPayloadValue(hit, 6);
-		//	compareAndSwapHitPayloadValue(hit, 7);
-		//	compareAndSwapHitPayloadValue(hit, 8);
-		//	compareAndSwapHitPayloadValue(hit, 9);
-		//	compareAndSwapHitPayloadValue(hit, 10);
-		//	compareAndSwapHitPayloadValue(hit, 11);
-		//	compareAndSwapHitPayloadValue(hit, 12);
-		//	compareAndSwapHitPayloadValue(hit, 13);
-		//	compareAndSwapHitPayloadValue(hit, 14);
-		//	compareAndSwapHitPayloadValue(hit, 15);
+		compareAndSwapHitPayloadValue(hit, 0);
+		compareAndSwapHitPayloadValue(hit, 1);
+		compareAndSwapHitPayloadValue(hit, 2);
+		compareAndSwapHitPayloadValue(hit, 3);
+		compareAndSwapHitPayloadValue(hit, 4);
+		compareAndSwapHitPayloadValue(hit, 5);
+		compareAndSwapHitPayloadValue(hit, 6);
+		compareAndSwapHitPayloadValue(hit, 7);
+		compareAndSwapHitPayloadValue(hit, 8);
+		compareAndSwapHitPayloadValue(hit, 9);
+		compareAndSwapHitPayloadValue(hit, 10);
+		compareAndSwapHitPayloadValue(hit, 11);
+		compareAndSwapHitPayloadValue(hit, 12);
+		compareAndSwapHitPayloadValue(hit, 13);
+		compareAndSwapHitPayloadValue(hit, 14);
+		compareAndSwapHitPayloadValue(hit, 15);
 
 		if(rayPayload.hits[MAX_HIT_PER_TRACE - 1].dist > gl_HitTEXT){
 			ignoreIntersectionEXT;
