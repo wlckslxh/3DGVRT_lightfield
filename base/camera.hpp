@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "Define.h"
 
 class Camera
 {
@@ -24,9 +25,15 @@ private:
 	{
 		glm::mat4 currentMatrix = matrices.view;
 
+#if Y_IS_UP
 		glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 		glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
 		glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
+#else N_IS_UP
+		glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
+		glm::vec3 vVec = glm::vec3(0.0f, 0.0f, 1.0f);
+		glm::vec3 nVec = glm::vec3(0.0f, -1.0f, 0.0f);
+#endif
 
 		if(glm::radians(rotation.y) != 0)
 		rotateAxis(glm::radians(rotation.y), &vVec, &nVec, &uVec);
@@ -205,9 +212,15 @@ public:
 			{
 				float moveSpeed = deltaTime * movementSpeed;
 
+#if Y_IS_UP
 				glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 				glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
 				glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
+#else N_IS_UP
+				glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
+				glm::vec3 vVec = glm::vec3(0.0f, 0.0f, 1.0f);
+				glm::vec3 nVec = glm::vec3(0.0f, -1.0f, 0.0f);
+#endif
 
 				if (glm::radians(rotation.y) != 0)
 					rotateAxis(glm::radians(rotation.y), &vVec, &nVec, &uVec);
@@ -216,34 +229,29 @@ public:
 				if (glm::radians(rotation.z) != 0)
 					rotateAxis(glm::radians(rotation.z), &nVec, &uVec, &vVec);
 
-				float x = moveSpeed; 
-				float y = moveSpeed; 
-				float z = moveSpeed; 
-
-				if (type == CameraType::firstperson||type == CameraType::SG_camera) {
-				if (keys.forward){
-					position -= glm::vec3(nVec.x * z, nVec.y * z, nVec.z * z);
-
+				if (type == CameraType::firstperson || type == CameraType::SG_camera) {
+					if (keys.forward) {
+						position -= nVec * moveSpeed;
+					}
+					if (keys.backward) {
+						position += nVec * moveSpeed;
+					}
+					if (keys.left)
+					{
+						position -= uVec * moveSpeed;
+					}
+					if (keys.right)
+					{
+						position += uVec * moveSpeed;
+					}
+					if (keys.up)
+					{
+						position += vVec * moveSpeed;
+					}
+					if (keys.down) {
+						position -= vVec * moveSpeed;
+					}
 				}
-				if (keys.backward) {
-					position += glm::vec3(nVec.x * z, nVec.y * z, nVec.z * z);
-				}
-				if (keys.left)
-				{
-					position -= glm::vec3(uVec.x * x, 0, uVec.z * x);
-				}
-				if (keys.right)
-				{
-					position += glm::vec3(uVec.x * x, 0, uVec.z * x);
-				}
-				if (keys.up)
-				{
-					position += glm::vec3(0, vVec.y * y, 0);
-				}
-				if (keys.down) {
-					position -= glm::vec3(0, vVec.y * y, 0);
-				}
-			}
 			}
 		}
 		updateViewMatrix();
