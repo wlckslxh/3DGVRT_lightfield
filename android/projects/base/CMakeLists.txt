@@ -39,6 +39,10 @@ add_library(libktx ${KTX_SOURCES})
 target_include_directories(libktx PUBLIC ${KTX_INCLUDE})
 set_property(TARGET libktx PROPERTY FOLDER "external")
 
+add_library(libminiply ${EXTERNAL_DIR}/miniply/miniply.cpp)
+target_include_directories(libminiply PUBLIC ${EXTERNAL_DIR}/miniply)
+set_property(TARGET libminiply PROPERTY FOLDER "external")
+
 include_directories(${BASE_DIR})
 include_directories(${EXTERNAL_DIR})
 include_directories(${EXTERNAL_DIR}/glm)
@@ -51,6 +55,7 @@ include_directories(${EXTERNAL_DIR}/ktx/lib)
 include_directories(${EXTERNAL_DIR}/ktx/include)
 include_directories(${EXTERNAL_DIR}/ktx/include/KHR)
 include_directories(${EXTERNAL_DIR}/ktx/other_include)
+include_directories(${EXTERNAL_DIR}/miniply)
 
 target_link_libraries(
 	libbase
@@ -58,4 +63,5 @@ target_link_libraries(
 	log
 	z
 	libktx
+	libminiply
 )
