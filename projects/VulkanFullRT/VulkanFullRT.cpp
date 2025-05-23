@@ -5,6 +5,11 @@
  * 
  * Full Ray Tracing
  * 
+ * Pipeline Composition
+ * |
+ * |------ (1) Gaussian Enclosing pass : Vulkan Compute pipeline
+ * |
+ * |------ (2) Particle Rendering pass : Vulkan Ray tracing pipeline or Vulkan Compute pipeline
  */
 
 #include "VulkanRTCommon.h"
@@ -45,16 +50,18 @@ public:
 
 	vks::Buffer transformBuffer3DGRT;
 
+#if !RAY_QUERY
 	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
 	struct ShaderBindingTables {
 		ShaderBindingTable raygen;
 		ShaderBindingTable miss;
 		ShaderBindingTable hit;
 	} shaderBindingTables;
+#endif
 
 	vks::utils::UniformDataDynamic uniformDataDynamic;
 	vks::utils::UniformDataStatic uniformDataStatic;
-	vks::utils::ComputeUniformData computeUniformData;
+	vks::utils::GaussianEnclosingUniformData gaussianEnclosingUniformData;
 
 	struct SpecializationData {
 		uint32_t numOfLights = NUM_OF_LIGHTS_SUPPORTED;
@@ -67,23 +74,22 @@ public:
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
 
-	struct Compute {
-		//VkQueue queue;
-
+	struct GaussianEnclosing {
 		VkPipeline pipeline{ VK_NULL_HANDLE };
 		VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
+
+		VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
 		VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
-	} compute;
+		
+		vks::Buffer uniformBuffer;
+		VkCommandBuffer commandBuffer{ VK_NULL_HANDLE };
+	} gaussianEnclosing;
 
 	vk3DGRT::Model gModel;
 
 	struct FrameObject : public BaseFrameObject {
 		VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
 	};
-
-	VkDescriptorSet computeDescriptorSet{ VK_NULL_HANDLE };
-	vks::Buffer computeUniformBuffer;
-	VkCommandBuffer computeCommandBuffer{ VK_NULL_HANDLE };
 
 	std::vector<FrameObject> frameObjects;
 	std::vector<BaseFrameObject*> pBaseFrameObjects;
@@ -128,17 +134,21 @@ public:
 	{
 		title = "Abura Soba - Vulkan Full Ray Tracing";
 		initCamera();
+
+#if RAY_QUERY
+		rayQueryOnly = true;
+#endif
 	}
 
 	~VulkanFullRT()
 	{
 		if (device) {
-			// for compute
-			vkDestroyPipeline(device, compute.pipeline, nullptr);
-			vkDestroyPipelineLayout(device, compute.pipelineLayout, nullptr);
-			vkDestroyDescriptorSetLayout(device, compute.descriptorSetLayout, nullptr);
+			// for Gaussian Enclosing pass
+			vkDestroyPipeline(device, gaussianEnclosing.pipeline, nullptr);
+			vkDestroyPipelineLayout(device, gaussianEnclosing.pipelineLayout, nullptr);
+			vkDestroyDescriptorSetLayout(device, gaussianEnclosing.descriptorSetLayout, nullptr);
 
-			// for ray tracing
+			// for Particle Rendering pass
 			vkDestroyPipeline(device, pipeline, nullptr);
 			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -155,15 +165,17 @@ public:
 			particleSphCoefficients.destroy();
 			particleVisibility.destroy();
 
-			computeUniformBuffer.destroy();
+			gaussianEnclosing.uniformBuffer.destroy();
 			
 			deleteAccelerationStructure(bottomLevelAS3DGRT);
 			deleteAccelerationStructure(topLevelAS3DGRT);
 			transformBuffer3DGRT.destroy();
 		
+#if !RAY_QUERY
 			shaderBindingTables.raygen.destroy();
 			shaderBindingTables.miss.destroy();
 			shaderBindingTables.hit.destroy();
+#endif
 			destroyCommandBuffers();
 
 #if LOAD_GLTF
@@ -183,7 +195,7 @@ public:
 		{
 			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &frame.commandBuffer));
 		}
-		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &computeCommandBuffer));
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &gaussianEnclosing.commandBuffer));
 	}
 
 	virtual void destroyCommandBuffers()
@@ -192,7 +204,7 @@ public:
 		{
 			vkFreeCommandBuffers(device, cmdPool, 1, &frame.commandBuffer);
 		}
-		vkFreeCommandBuffers(device, cmdPool, 1, &computeCommandBuffer);
+		vkFreeCommandBuffers(device, cmdPool, 1, &gaussianEnclosing.commandBuffer);
 	}
 
 
@@ -682,6 +694,7 @@ public:
 		instancesBuffer.destroy();
 	}
 
+#if !RAY_QUERY
 	/*
 		Create the Shader Binding Tables that binds the programs and top-level acceleration structure
 
@@ -716,25 +729,28 @@ public:
 		// Global[2], Group Local[0]: Hit group
 		memcpy(shaderBindingTables.hit.mapped, shaderHandleStorage.data() + handleSizeAligned * 2, handleSize);
 	}
+#endif
 
 	/*
-		Create out compute pipeline
+		Create out gaussianEnclosing pipeline
 	*/
-	void createComputePipeline()
+	void createGaussianEnclosingPipeline()
 	{
-		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&compute.descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &compute.pipelineLayout));
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&gaussianEnclosing.descriptorSetLayout, 1);
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &gaussianEnclosing.pipelineLayout));
 
-		VkComputePipelineCreateInfo computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(compute.pipelineLayout, 0);
+		VkComputePipelineCreateInfo computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(gaussianEnclosing.pipelineLayout, 0);
 		computePipelineCreateInfo.stage = loadShader(getShadersPath() + DIR_PATH + "particlePrimitives.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
 
-		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &compute.pipeline));
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &gaussianEnclosing.pipeline));
 	}
 
-	/*
-		Create our ray tracing pipeline
-	*/
-	void createRayTracingPipeline()
+#if RAY_QUERY
+	void createParticleRenderingPipeline()
+	{
+	}
+#else
+	void createParticleRenderingPipeline()
 	{
 		// For transfer of num of lights, use specialization constant.
 		std::vector<VkSpecializationMapEntry> specializationMapEntries = {
@@ -817,10 +833,8 @@ public:
 		rayTracingPipelineCI.layout = pipelineLayout;
 		VK_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline));
 	}
+#endif
 
-	/*
-		Create the descriptor sets used for the ray tracing dispatch
-	*/
 	void createDescriptorSets()
 	{
 		std::vector<VkDescriptorPoolSize> poolSizes = {
@@ -830,7 +844,7 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * swapChain.imageCount),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // compute pipeline + ray tracing pipeline
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // gaussianEnclosing pipeline + ray tracing pipeline
 
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));	// descriptor pool
 		
@@ -903,22 +917,22 @@ public:
 	}
 
 	/*
-		Create the descriptor sets used for the compute pipeline
+		Create the descriptor sets used for the gaussianEnclosing pipeline
 	*/
-	void createComputeDescriptorSets()
+	void createGaussianEnclosingDescriptorSets()
 	{
 		std::vector<VkDescriptorPoolSize> poolSizes = {
-			// compute pipeline
+			// gaussianEnclosing pipeline
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6), // vertices, triangles, position, rotation, scale, density
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),	// particle density
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3)	// particle sph coefficient
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 1); // compute pipeline
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 1); // gaussianEnclosing pipeline
 
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));	// descriptor pool
 
-		// for compute pipeline begin
+		// for gaussianEnclosing pipeline begin
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			// Binding 0: Vertices
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 0),
@@ -945,10 +959,10 @@ public:
 		};
 
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &compute.descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &gaussianEnclosing.descriptorSetLayout));
 
-		VkDescriptorSet& descriptorSet = computeDescriptorSet;
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &compute.descriptorSetLayout, 1);
+		VkDescriptorSet& descriptorSet = gaussianEnclosing.descriptorSet;
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &gaussianEnclosing.descriptorSetLayout, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorSet));
 
 		std::vector<VkWriteDescriptorSet> computeWriteDescriptorSets = {
@@ -965,7 +979,7 @@ public:
 			// Binding 5: Density
 			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &gModel.densities.storageBuffer.descriptor),
 			// Binding 6: Uniform Buffer 
-			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 6, &computeUniformBuffer.descriptor),
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 6, &gaussianEnclosing.uniformBuffer.descriptor),
 			// Binding 7: Particle density
 			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &particleDensities.descriptor),
 			// Binding 8: Features albedo
@@ -977,7 +991,7 @@ public:
 		};
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
-		// for compute pipeline end
+		// for gaussianEnclosing pipeline end
 	}
 
 	/*
@@ -995,19 +1009,19 @@ public:
 		resized = false;
 	}
 
-	void buildComputeCommandBuffer()
+	void buildGaussianEnclosingCommandBuffer()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(computeCommandBuffer, &cmdBufInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(gaussianEnclosing.commandBuffer, &cmdBufInfo));
 
-		vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline);
-		vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &computeDescriptorSet, 0, 0);
+		vkCmdBindPipeline(gaussianEnclosing.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, gaussianEnclosing.pipeline);
+		vkCmdBindDescriptorSets(gaussianEnclosing.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, gaussianEnclosing.pipelineLayout, 0, 1, &gaussianEnclosing.descriptorSet, 0, 0);
 
 		uint32_t groupCountX = NUM_OF_GAUSSIANS;
-		vkCmdDispatch(computeCommandBuffer, (gModel.splatSet.size() + groupCountX - 1)/ groupCountX, 1, 1);
+		vkCmdDispatch(gaussianEnclosing.commandBuffer, (gModel.splatSet.size() + groupCountX - 1)/ groupCountX, 1, 1);
 
-		VK_CHECK_RESULT(vkEndCommandBuffer(computeCommandBuffer));
+		VK_CHECK_RESULT(vkEndCommandBuffer(gaussianEnclosing.commandBuffer));
 	}
 
 	/*
@@ -1133,28 +1147,28 @@ public:
 		memcpy(currentFrame.uniformBuffer.mapped, &uniformDataDynamic, sizeof(uniformDataDynamic));
 	}
 
-	void updateComputeUniformBuffer()
+	void updateGaussianEnclosingUniformBuffer()
 	{
-		computeUniformData.numOfGaussians = gModel.splatSet.size();
-		computeUniformData.kernelMinResponse = 0.0113f;	// these values should be managed as config val
-		computeUniformData.opts = 0;
-		computeUniformData.degree = 4;
+		gaussianEnclosingUniformData.numOfGaussians = gModel.splatSet.size();
+		gaussianEnclosingUniformData.kernelMinResponse = 0.0113f;	// these values should be managed as config val
+		gaussianEnclosingUniformData.opts = 0;
+		gaussianEnclosingUniformData.degree = 4;
 
 		// mapping
 		vks::Buffer stagingBuffer;
-		stagingBuffer.size = sizeof(vks::utils::ComputeUniformData);
+		stagingBuffer.size = sizeof(vks::utils::GaussianEnclosingUniformData);
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer.size, &stagingBuffer.buffer, &stagingBuffer.memory, nullptr));
 
 		void* data;
-		vkMapMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, 0, sizeof(vks::utils::ComputeUniformData), 0, &data);
-		memcpy(data, (void*)&computeUniformData, sizeof(vks::utils::ComputeUniformData));
+		vkMapMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, 0, sizeof(vks::utils::GaussianEnclosingUniformData), 0, &data);
+		memcpy(data, (void*)&gaussianEnclosingUniformData, sizeof(vks::utils::GaussianEnclosingUniformData));
 		vkUnmapMemory(vulkanDevice->logicalDevice, stagingBuffer.memory);
 
 		VkBufferCopy copyRegion;
 		copyRegion.srcOffset = 0;
 		copyRegion.dstOffset = 0;
 		copyRegion.size = stagingBuffer.size;
-		vulkanDevice->copyBuffer(&stagingBuffer, &computeUniformBuffer, graphicsQueue, &copyRegion);
+		vulkanDevice->copyBuffer(&stagingBuffer, &gaussianEnclosing.uniformBuffer, graphicsQueue, &copyRegion);
 
 		vkDestroyBuffer(vulkanDevice->logicalDevice, stagingBuffer.buffer, nullptr);
 		vkFreeMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, nullptr);
@@ -1241,12 +1255,12 @@ public:
 
 	void computeGaussianEnclosingIcosaHedron()
 	{
-		// compute pipeline
-		buildComputeCommandBuffer();
+		// gaussianEnclosing pipeline
+		buildGaussianEnclosingCommandBuffer();
 
 		VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
 		computeSubmitInfo.commandBufferCount = 1;
-		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
+		computeSubmitInfo.pCommandBuffers = &gaussianEnclosing.commandBuffer;
 		VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
 
 		vkDeviceWaitIdle(device);
@@ -1290,8 +1304,8 @@ public:
 			setupTimeStampQueries(frame, timeStampCountPerFrame);
 		}
 
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &computeUniformBuffer, sizeof(vks::utils::ComputeUniformData), nullptr));
-		updateComputeUniformBuffer();
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &gaussianEnclosing.uniformBuffer, sizeof(vks::utils::GaussianEnclosingUniformData), nullptr));
+		updateGaussianEnclosingUniformBuffer();
 
 		// allocate device memory for vertex/index buffer
 		gModel.allocateAttributeBuffers(vulkanDevice, graphicsQueue);
@@ -1302,8 +1316,9 @@ public:
 		// particle visibility
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &particleVisibility, sizeof(ParticleVisibility) * gModel.splatSet.size(), nullptr));
 
-		createComputeDescriptorSets();
-		createComputePipeline();
+		// (1) Gaussian Enclosing pass
+		createGaussianEnclosingDescriptorSets();
+		createGaussianEnclosingPipeline();
 		computeGaussianEnclosingIcosaHedron();
 
 		// Create the acceleration structures used to render the ray traced scene
@@ -1316,8 +1331,10 @@ public:
 		createTopLevelAccelerationStructure3DGRT();
 
 		createDescriptorSets();
-		createRayTracingPipeline();
+		createParticleRenderingPipeline();
+#if !RAY_QUERY
 		createShaderBindingTables();
+#endif
 
 		prepared = true;
 	}

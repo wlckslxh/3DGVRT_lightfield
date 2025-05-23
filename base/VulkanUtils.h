@@ -52,7 +52,7 @@ namespace vks {
 #endif
 		};
 
-		struct ComputeUniformData {
+		struct GaussianEnclosingUniformData {
 			alignas(4) unsigned int numOfGaussians;
 			alignas(4) float kernelMinResponse;
 			alignas(4) unsigned int opts;

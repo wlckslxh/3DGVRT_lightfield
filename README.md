@@ -84,7 +84,10 @@ It's still being prepared. 😘 <br/>
 ## 🏭 List of Projects
 
 ### [Vulkan Full Ray tracing](projects/VulkanFullRT/)
-- 1 ray tracing pipeline
+1. Gaussian Enclosing pass (전처리로 1번 수행🔂)
+    - Vulkan compute pipeline
+2. Particle Rendering pass (매 frame마다 수행🔁)
+    - Vulkan ray tracing pipeline or Vulkan compute pipeline (chosen by macro RAY_QUERY)
 
 ### [Vulkan Hybrid](projects/VulkanHybrid/)
 - 1 graphics pipeline + 1 ray tracing pipeline
