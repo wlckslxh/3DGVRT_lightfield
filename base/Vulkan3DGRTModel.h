@@ -8,6 +8,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#if defined(__ANDROID__)
+#include <android/asset_manager.h>
+#endif
+
 namespace vk3DGRT {
 	struct SplatSet {
 		// standard poiont cloud attributes
@@ -28,7 +32,7 @@ namespace vk3DGRT {
 		PLYLoader() {}
 		~PLYLoader() {}
 
-		bool loadPLYModel(std::string filename, SplatSet & output);
+		bool loadPLYModel(const char *filename, SplatSet & output);
 	};
 
 	class Model {

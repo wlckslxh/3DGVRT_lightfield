@@ -623,6 +623,50 @@ namespace miniply {
     }
   }
 
+#if defined(__ANDROID__)
+  PLYReader::PLYReader(const void* memBuffer, size_t memLength)
+  {
+      m_memBuffer = reinterpret_cast<const uint8_t*>(memBuffer);
+      m_memLength = memLength;
+      m_memPos = 0;
+      m_f = nullptr;
+
+      m_buf = new char[kPLYReadBufferSize + 1];
+      m_buf[kPLYReadBufferSize] = '\0';
+      m_pos = m_buf;
+      m_end = m_buf;
+      m_bufEnd = m_buf;
+      m_bufOffset = 0;
+      m_atEOF = false;
+      m_valid = true;
+
+      m_tmpBuf = new char[kPLYTempBufferSize + 1];
+      m_tmpBuf[kPLYTempBufferSize] = '\0';
+
+      refill_buffer();
+
+      m_valid = keyword("ply") && next_line() &&
+          keyword("format") && advance() &&
+          typed_which(kPLYFileTypes, &m_fileType) && advance() &&
+          int_literal(&m_majorVersion) && advance() &&
+          match(".") && advance() &&
+          int_literal(&m_minorVersion) && next_line() &&
+          parse_elements() &&
+          keyword("end_header") && advance() && match("\n") && accept();
+      if (!m_valid) {
+          return;
+      }
+      m_inDataSection = true;
+      if (m_fileType == PLYFileType::ASCII) {
+          advance();
+      }
+
+      for (PLYElement& elem : m_elements) {
+          elem.calculate_offsets();
+      }
+  }
+
+#endif
 
   PLYReader::~PLYReader()
   {
@@ -1330,50 +1374,85 @@ namespace miniply {
            find_properties(propIdxs, 1, "vertex_index");
   }
 
-
-  //
-  // PLYReader private methods
-  //
-
+#if defined(__ANDROID__)
   bool PLYReader::refill_buffer()
   {
-    if (m_f == nullptr || m_atEOF) {
-      // Nothing left to read.
-      return false;
+    if (m_memBuffer == nullptr || m_atEOF) {
+        return false;
     }
 
-    if (m_pos == m_buf && m_end == m_bufEnd) {
-      // Can't make any more room in the buffer!
-      return false;
+    if (m_bufEnd != m_buf && m_pos == m_buf && m_end == m_bufEnd) {
+        return false;
     }
 
-    // Move everything from the start of the current token onwards, to the
-    // start of the read buffer.
-    int64_t bufSize = static_cast<int64_t>(m_bufEnd - m_buf);
-    if (bufSize < kPLYReadBufferSize) {
-      m_buf[bufSize] = m_buf[kPLYReadBufferSize];
-      m_buf[kPLYReadBufferSize] = '\0';
-      m_bufEnd = m_buf + kPLYReadBufferSize;
-    }
     size_t keep = static_cast<size_t>(m_bufEnd - m_pos);
     if (keep > 0 && m_pos > m_buf) {
-      std::memmove(m_buf, m_pos, sizeof(char) * keep);
-      m_bufOffset += static_cast<int64_t>(m_pos - m_buf);
+        std::memmove(m_buf, m_pos, keep);
+        m_bufOffset += static_cast<int64_t>(m_pos - m_buf);
     }
     m_end = m_buf + (m_end - m_pos);
     m_pos = m_buf;
 
-    // Fill the remaining space in the buffer with data from the file.
-    size_t fetched = fread(m_buf + keep, sizeof(char), kPLYReadBufferSize - keep, m_f) + keep;
-    m_atEOF = fetched < kPLYReadBufferSize;
+    size_t toCopy = kPLYReadBufferSize - keep;
+    if (m_memPos + toCopy > m_memLength) {
+        toCopy = m_memLength - m_memPos;
+    }
+    if (toCopy > 0) {
+        memcpy(m_buf + keep, m_memBuffer + m_memPos, toCopy);
+        m_memPos += toCopy;
+    }
+    size_t fetched = keep + toCopy;
+
+    m_atEOF = (m_memPos >= m_memLength);
+
     m_bufEnd = m_buf + fetched;
+    m_end = m_buf + fetched;
 
     if (!m_inDataSection || m_fileType == PLYFileType::ASCII) {
-      return rewind_to_safe_char();
+        return rewind_to_safe_char();
     }
     return true;
   }
+#else
+  bool PLYReader::refill_buffer()
+  {
+      if (m_f == nullptr || m_atEOF) {
+          // Nothing left to read.
+          return false;
+      }
 
+      if (m_pos == m_buf && m_end == m_bufEnd) {
+          // Can't make any more room in the buffer!
+          return false;
+      }
+
+      // Move everything from the start of the current token onwards, to the
+      // start of the read buffer.
+      int64_t bufSize = static_cast<int64_t>(m_bufEnd - m_buf);
+      if (bufSize < kPLYReadBufferSize) {
+          m_buf[bufSize] = m_buf[kPLYReadBufferSize];
+          m_buf[kPLYReadBufferSize] = '\0';
+          m_bufEnd = m_buf + kPLYReadBufferSize;
+      }
+      size_t keep = static_cast<size_t>(m_bufEnd - m_pos);
+      if (keep > 0 && m_pos > m_buf) {
+          std::memmove(m_buf, m_pos, sizeof(char) * keep);
+          m_bufOffset += static_cast<int64_t>(m_pos - m_buf);
+      }
+      m_end = m_buf + (m_end - m_pos);
+      m_pos = m_buf;
+
+      // Fill the remaining space in the buffer with data from the file.
+      size_t fetched = fread(m_buf + keep, sizeof(char), kPLYReadBufferSize - keep, m_f) + keep;
+      m_atEOF = fetched < kPLYReadBufferSize;
+      m_bufEnd = m_buf + fetched;
+
+      if (!m_inDataSection || m_fileType == PLYFileType::ASCII) {
+          return rewind_to_safe_char();
+      }
+      return true;
+  }
+#endif
 
   bool PLYReader::rewind_to_safe_char()
   {

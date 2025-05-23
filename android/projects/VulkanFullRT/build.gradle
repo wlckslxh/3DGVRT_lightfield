@@ -63,6 +63,7 @@ task copyTask {
         include '*.spv'
     }
 
+    // gltf models
     copy {
 //        from rootProject.ext.assetPath + 'models/cornellBox'
 //        into 'assets/models/cornellBox'
@@ -73,8 +74,8 @@ task copyTask {
 //        from rootProject.ext.assetPath + 'models/suntemple_etc1s'
 //        into 'assets/models/suntemple_etc1s'
 //
-        from rootProject.ext.assetPath + 'models/sponza_multi_blas_transparent'
-        into 'assets/models/sponza_multi_blas_transparent'
+//        from rootProject.ext.assetPath + 'models/sponza_multi_blas_transparent'
+//        into 'assets/models/sponza_multi_blas_transparent'
 //
 //        from rootProject.ext.assetPath + 'models/sponza_etc1s'
 //        into 'assets/models/sponza_etc1s'
@@ -82,6 +83,13 @@ task copyTask {
 //       from rootProject.ext.assetPath + 'models/bistroexterior_etc1s'
 //       into 'assets/models/bistroexterior_etc1s'
         include '*.*'
+    }
+
+    // ply models
+    copy {
+        from rootProject.ext.assetPath + '3DGRTModels/lego'
+        into 'assets/3DGRTModels/lego'
+        include 'export_last.ply'
     }
 
     copy {

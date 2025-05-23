@@ -439,6 +439,8 @@ namespace vks
 		buffer->setupDescriptor();
 
 		// Attach the memory to the buffer object
+        assert(buffer->buffer != VK_NULL_HANDLE && "Buffer is null before bind");
+        assert(buffer->memory != VK_NULL_HANDLE && "Memory is null before bind");
 		return buffer->bind();
 	}
 

@@ -147,6 +147,9 @@ namespace miniply {
   class PLYReader {
   public:
     PLYReader(const char* filename);
+#if defined(__ANDROID__)
+    PLYReader(const void* memBuffer, size_t memLength);
+#endif
     ~PLYReader();
 
     bool valid() const;
@@ -236,7 +239,11 @@ namespace miniply {
     bool find_indices(uint32_t propIdxs[1]) const;
 
   private:
+#if defined(__ANDROID__)
     bool refill_buffer();
+#else
+    bool refill_buffer();
+#endif
     bool rewind_to_safe_char();
     bool accept();
     bool advance();
@@ -294,6 +301,13 @@ namespace miniply {
     std::vector<uint8_t> m_elementData;
 
     char* m_tmpBuf = nullptr;
+
+#if defined(__ANDROID__)
+    const u_int8_t* m_memBuffer;
+    u_int32_t m_memLength;
+    u_int32_t m_memPos;
+    size_t m_dataStart = 0;
+#endif
   };
 
 

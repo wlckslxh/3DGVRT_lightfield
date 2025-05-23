@@ -4,17 +4,36 @@
 #include "chrono"
 
 namespace vk3DGRT {
-	bool PLYLoader::loadPLYModel(std::string filename, SplatSet & output)
+	bool PLYLoader::loadPLYModel(const char *filename, SplatSet & output)
 	{
 		auto startTime = std::chrono::high_resolution_clock::now();
 
+#if defined(__ANDROID__)
+		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, filename, AASSET_MODE_STREAMING);
+		if (!asset) {
+			std::cout << "Error: failed to open asset of ply format" << std::endl;
+			return false;
+		}
+		size_t assetLength = AAsset_getLength(asset);
+		std::vector<uint8_t> buffer(assetLength);
+		AAsset_read(asset, buffer.data(), assetLength);
+		AAsset_close(asset);
+
+		// From memory buffer
+		miniply::PLYReader reader(buffer.data(), buffer.size());
+		if (!reader.valid()) {
+			std::cout << "Error: ply loader failed to open asset buffer" << std::endl;
+			return false;
+		}
+#else
 		// Open the file
-		miniply::PLYReader reader(filename.c_str());
+		miniply::PLYReader reader(filename);
 		if (!reader.valid())
 		{
 			std::cout << "Error: ply loader failed to open file: " << filename << std::endl;
 			return false;
 		}
+#endif
 
 		uint32_t indices[45];
 		bool gsFound = false;
@@ -120,7 +139,7 @@ namespace vk3DGRT {
 			if (filename.substr(filename.find_last_of(".") + 1) == "ply") // .ply file
 			{
 				PLYLoader plyLoader;
-				plyLoader.loadPLYModel(filename, splatSet);
+				plyLoader.loadPLYModel(filename.c_str(), splatSet);
 				std::cout << "done" << std::endl;
 			}
 			else
