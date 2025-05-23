@@ -61,6 +61,7 @@ private:
 public:
 	NerfCameraData nerfCameras;
 	float fovy;
+	vector<string> camNames;
 
 	void loadNerfCameraData(const string& jsonPath, uint32_t width, uint32_t height, float znear, float zfar) {
 		ifstream fin(jsonPath);
@@ -73,6 +74,8 @@ public:
 
 		nerfCameras.cameraAngleX = j["camera_angle_x"].get<float>();
 		calcIntrinsics(nerfCameras.cameraAngleX, width, height, znear, zfar);
+		int i = 0;
+		
 		for (const auto& frame : j["frames"]) {
 			CameraFrame f;
 			f.filePath = frame["file_path"].get<string>();
@@ -85,6 +88,9 @@ public:
 			}
 			c2wTow2cRT(f);
 			nerfCameras.frames.push_back(f);
+
+			camNames.push_back(to_string(i));
+			i++;
 		}
 	}
 

@@ -20,7 +20,6 @@
 #define NEAR_PLANE 0.1
 #define FAR_PLANE 5000
 #define FOV_Y 35
-#define CAM_IDX 2 //for temporary use. select idx of nerf camera
 
 #define ASSET 0
 #define LOAD_GLTF 0

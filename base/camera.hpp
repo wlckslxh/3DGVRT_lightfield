@@ -56,6 +56,7 @@ public:
 	glm::vec3 rotation = glm::vec3();
 	glm::vec3 position = glm::vec3();
 	glm::vec4 viewPos = glm::vec4();
+	DatasetType dataType;
 
 	float rotationSpeed = 1.0f;
 	float movementSpeed = 15.0f;
@@ -78,6 +79,10 @@ public:
 		bool forward = false;
 		bool backward = false;
 	} keys;
+
+	const vector<string> getCamNames() {
+		return cameraLoader.camNames;
+	}
 
 	void setNearFar(float _znear, float _zfar) {
 		znear = _znear;
@@ -103,6 +108,7 @@ public:
 			cameraLoader.loadNerfCameraData(path, width, height, znear, zfar);
 			//cameraLoader.PrintCameraData(cameraLoader.nerfCameras);
 		}
+		dataType = type;
 	}
 
 	void rotateAxis(float rad_angle, glm::vec3* u, glm::vec3* v, glm::vec3* n) {  // rotate u, v->n
@@ -255,26 +261,26 @@ public:
 
 				if (type == CameraType::firstperson||type == CameraType::SG_camera) {
 				if (keys.forward){
-					position -= glm::vec3(nVec.x * z, nVec.y * z, nVec.z * z);
+					position -= nVec * moveSpeed;
 
 				}
 				if (keys.backward) {
-					position += glm::vec3(nVec.x * z, nVec.y * z, nVec.z * z);
+					position += nVec * moveSpeed;
 				}
 				if (keys.left)
 				{
-					position -= glm::vec3(uVec.x * x, 0, uVec.z * x);
+					position -= uVec * moveSpeed;
 				}
 				if (keys.right)
 				{
-					position += glm::vec3(uVec.x * x, 0, uVec.z * x);
+					position += uVec * moveSpeed;
 				}
 				if (keys.up)
 				{
-					position += glm::vec3(0, vVec.y * y, 0);
+					position += vVec * moveSpeed;
 				}
 				if (keys.down) {
-					position -= glm::vec3(0, vVec.y * y, 0);
+					position -= vVec * moveSpeed;
 				}
 			}
 			}

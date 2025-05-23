@@ -792,6 +792,28 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	ImGui::SliderFloat("_gamma", &pushConstants.lightAttVar.gamma, 0.001f, 1.0f);
 	ImGui::Separator();
 
+	//static const char* camNames[] = { "0","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29" };
+	static vector<string> camNames = camera.getCamNames();
+	static const char* current_item = "0";
+	
+	ImGui::Text("loaded cameras");
+	if (ImGui::BeginCombo("##combo", current_item))
+	{
+		for (int n = 0; n < camNames.size(); n++)
+		{
+			bool is_selected = (current_item == camNames[n].c_str());
+			if (ImGui::Selectable(camNames[n].c_str(), is_selected)) {
+				current_item = camNames[n].c_str();
+				if(!is_selected){
+					//ImGui::SetItemDefaultFocus();
+					camera.setDatasetCamera(camera.dataType, n, (float)width / height);
+				}
+			}
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::Separator();
+
 	//text input for fps calculation
 	if(!fpsQuery) {
 		//ImGui::PushItemWidth(50);
@@ -3697,7 +3719,7 @@ void VulkanRTBase::initCamera(Camera::DatasetType type, string path)
 	if (type != Camera::DatasetType::none) {
 		camera.setNearFar(NEAR_PLANE, FAR_PLANE);
 		camera.loadDatasetCamera(type, path, width, height);
-		camera.setDatasetCamera(type, CAM_IDX, (float)width/(float)height);
+		camera.setDatasetCamera(type, 0, (float)width/(float)height);
 	}
 	else {
 		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 5000.0f);
