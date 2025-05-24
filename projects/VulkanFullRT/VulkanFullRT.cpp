@@ -70,6 +70,7 @@ public:
 		uint32_t staticLightOffset = STATIC_LIGHT_OFFSET;
 	} specializationData;
 
+	// for Particle Rendering pass
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
@@ -95,8 +96,10 @@ public:
 	std::vector<BaseFrameObject*> pBaseFrameObjects;
 
 	VkPhysicalDeviceDescriptorIndexingFeaturesEXT physicalDeviceDescriptorIndexingFeatures{};
-	VkPhysicalDeviceRayQueryFeaturesKHR enabledRayQueryFeatures{};
 	VkPhysicalDeviceHostQueryResetFeaturesEXT physicalDeviceHostQueryResetFeatures{};
+#if RAY_QUERY
+	VkPhysicalDeviceRayQueryFeaturesKHR enabledRayQueryFeatures{};
+#endif
 
 	const uint32_t timeStampCountPerFrame = 1;
 
@@ -748,6 +751,28 @@ public:
 #if RAY_QUERY
 	void createParticleRenderingPipeline()
 	{
+		// For transfer of num of lights, use specialization constant.
+		std::vector<VkSpecializationMapEntry> specializationMapEntries = {
+			vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t)),
+			vks::initializers::specializationMapEntry(1, sizeof(uint32_t), sizeof(uint32_t)),
+			vks::initializers::specializationMapEntry(2, sizeof(uint32_t) * 2, sizeof(uint32_t)),
+			vks::initializers::specializationMapEntry(3, sizeof(uint32_t) * 3, sizeof(uint32_t)),
+		};
+		VkSpecializationInfo specializationInfo = vks::initializers::specializationInfo(static_cast<uint32_t>(specializationMapEntries.size()), specializationMapEntries.data(), sizeof(SpecializationData), &specializationData);
+
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
+
+		// For transfer push constants
+		VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_COMPUTE_BIT, sizeof(pushConstants), 0);
+		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+
+		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+
+		VkComputePipelineCreateInfo computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(pipelineLayout, 0);
+		computePipelineCreateInfo.stage = loadShader(getShadersPath() + DIR_PATH + "particleRendering.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+
+		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &pipeline));
 	}
 #else
 	void createParticleRenderingPipeline()
@@ -850,6 +875,22 @@ public:
 		
 		// for ray tracing pipeline begin
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+#if RAY_QUERY
+			// Binding 0: Top level acceleration structure
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_COMPUTE_BIT, 0),
+			// Binding 1: Ray tracing result image
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1),
+			// Binding 2: Uniform buffer Dynamic
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 2),
+			// Binding 3: Uniform buffer Static
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 3),
+			// Binding 4: Storage buffer - Particle Densities
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 4),
+			// Binding 5: Storage buffer - Particle Sph Coefficients
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 5),
+			// Binding 6: Storage buffer - Particle Visibility
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 6),
+#else
 			// Binding 0: Top level acceleration structure
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0),
 			// Binding 1: Ray tracing result image
@@ -859,17 +900,12 @@ public:
 			// Binding 3: Uniform buffer Static
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 3),
 			// Binding 4: Storage buffer - Particle Densities
-			vks::initializers::descriptorSetLayoutBinding(
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
 			// Binding 5: Storage buffer - Particle Sph Coefficients
-			vks::initializers::descriptorSetLayoutBinding(
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
 			// Binding 6: Storage buffer - Particle Visibility
-			vks::initializers::descriptorSetLayoutBinding(
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				VK_SHADER_STAGE_RAYGEN_BIT_KHR, 6),
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 6),
+#endif
 		};
 
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -1042,12 +1078,15 @@ public:
 
 		vkCmdResetQueryPool(frame.commandBuffer, frame.timeStampQueryPool, 0, static_cast<uint32_t>(frame.timeStamps.size()));
 
-		/*
-			Dispatch the ray tracing commands
-		*/
+#if RAY_QUERY
+		vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
+		vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstants), &pushConstants);
+#else
 		vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
 		vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
+#endif
 
 		vks::tools::setImageLayout(
 			frame.commandBuffer,
@@ -1056,6 +1095,9 @@ public:
 			VK_IMAGE_LAYOUT_GENERAL,
 			subresourceRange);
 
+#if RAY_QUERY
+		vkCmdDispatch(frame.commandBuffer, width, height, 1);
+#else
 		VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
 		vkCmdTraceRaysKHR(
 			frame.commandBuffer,
@@ -1066,6 +1108,7 @@ public:
 			width,
 			height,
 			1);
+#endif
 
 		vks::tools::setImageLayout(
 			frame.commandBuffer,
@@ -1098,12 +1141,15 @@ public:
 
 			vkCmdResetQueryPool(frame.commandBuffer, frame.timeStampQueryPool, 0, static_cast<uint32_t>(frame.timeStamps.size()));
 
-			/*
-				Dispatch the ray tracing commands
-			*/
+#if RAY_QUERY
+			vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+			vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
+			vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstants), &pushConstants);
+#else
 			vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 			vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
 			vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
+#endif
 
 			vks::tools::setImageLayout(
 				frame.commandBuffer,
@@ -1112,6 +1158,9 @@ public:
 				VK_IMAGE_LAYOUT_GENERAL,
 				subresourceRange);
 
+#if RAY_QUERY
+			vkCmdDispatch(frame.commandBuffer, width, height, 1);
+#else
 			VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
 			vkCmdTraceRaysKHR(
 				frame.commandBuffer,
@@ -1122,6 +1171,7 @@ public:
 				width,
 				height,
 				1);
+#endif
 
 			vks::tools::setImageLayout(
 				frame.commandBuffer,
@@ -1177,6 +1227,14 @@ public:
 	virtual void getEnabledFeatures()
 	{
 		// New Features using VkPhysicalDeviceFeatures2 structure.
+#if RAY_QUERY
+		// Enable feature required for ray query.
+		enabledRayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+		enabledRayQueryFeatures.rayQuery = VK_TRUE;
+		
+		physicalDeviceHostQueryResetFeatures.pNext = &enabledRayQueryFeatures;
+#endif
+
 		// Enable feature required for time stamp command pool reset.
 		physicalDeviceHostQueryResetFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES_EXT;
 		physicalDeviceHostQueryResetFeatures.hostQueryReset = VK_TRUE;
@@ -1330,6 +1388,7 @@ public:
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
 
+		// (2) Particle Rendering pass
 		createDescriptorSets();
 		createParticleRenderingPipeline();
 #if !RAY_QUERY

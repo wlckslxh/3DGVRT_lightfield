@@ -1,0 +1,56 @@
+/*
+ * Abura Soba, 2025
+ * 
+ * Full Ray Tracing
+ *
+ * Particle Rendering pass
+ *
+ * Compute shader
+ */
+
+#version 460
+#extension GL_EXT_ray_query : enable
+
+#include "../base/light.glsl"
+#include "../base/3dgs.glsl"
+
+// Initialized with default value. Appropriate value will be transfered from application.
+layout(constant_id = 0) const uint numOfLights = 1;	
+layout(constant_id = 1) const uint numOfDynamicLights = 1;
+layout(constant_id = 2) const uint numOfStaticLights = 1;
+layout(constant_id = 3) const uint staticLightOffset = 1;
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 1, set = 0, rgba8) uniform image2D image;
+layout(binding = 2, set = 0) uniform uniformBuffer
+{
+	mat4 viewInverse;
+	mat4 projInverse;
+	//Light lights[numOfDynamicLights];
+} uboDynamic;
+layout(binding = 3, set = 0) uniform uniformBufferStatic
+{
+	Light lights[numOfStaticLights];
+	Aabb aabb;
+	float minTransmittance;
+	float hitMinGaussianResponse;
+	uint sphEvalDegree;
+} uboStatic;
+
+#if !BUFFER_REFERENCE
+layout(std140, binding = 4, set = 0) buffer ParticleDensities {
+	ParticleDensity d[];
+} particleDensities;
+layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
+	float c[];
+} particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. uboStatic.particleRadiance
+layout(std430, binding = 6, set = 0) buffer ParticleVisibility {
+	float v[];
+} particleVisibilities;
+#endif
+
+void main()
+{
+
+
+}

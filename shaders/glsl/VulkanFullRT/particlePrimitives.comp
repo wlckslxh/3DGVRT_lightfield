@@ -3,6 +3,8 @@
  * 
  * Full Ray Tracing
  *
+ * Gaussian Enclosing pass
+ *
  * Compute shader
  */
 
