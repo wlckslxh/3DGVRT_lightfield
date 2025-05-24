@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Sogang Univ, Graphics Lab, 2024
  * 
  * Abura Soba, 2025
@@ -68,6 +68,8 @@ public:
 		uint32_t numOfDynamicLights = NUM_OF_DYNAMIC_LIGHTS;
 		uint32_t numOfStaticLights = NUM_OF_STATIC_LIGHTS;
 		uint32_t staticLightOffset = STATIC_LIGHT_OFFSET;
+		uint32_t windowSizeX = 1;
+		uint32_t windowSizeY = 1;
 	} specializationData;
 
 	// for Particle Rendering pass
@@ -751,12 +753,16 @@ public:
 #if RAY_QUERY
 	void createParticleRenderingPipeline()
 	{
-		// For transfer of num of lights, use specialization constant.
+		// Specialization constants
+		specializationData.windowSizeX = width;
+		specializationData.windowSizeY = height;
 		std::vector<VkSpecializationMapEntry> specializationMapEntries = {
 			vks::initializers::specializationMapEntry(0, 0, sizeof(uint32_t)),
 			vks::initializers::specializationMapEntry(1, sizeof(uint32_t), sizeof(uint32_t)),
 			vks::initializers::specializationMapEntry(2, sizeof(uint32_t) * 2, sizeof(uint32_t)),
 			vks::initializers::specializationMapEntry(3, sizeof(uint32_t) * 3, sizeof(uint32_t)),
+			vks::initializers::specializationMapEntry(4, sizeof(uint32_t) * 4, sizeof(uint32_t)),
+			vks::initializers::specializationMapEntry(5, sizeof(uint32_t) * 5, sizeof(uint32_t)),
 		};
 		VkSpecializationInfo specializationInfo = vks::initializers::specializationInfo(static_cast<uint32_t>(specializationMapEntries.size()), specializationMapEntries.data(), sizeof(SpecializationData), &specializationData);
 
@@ -1117,7 +1123,9 @@ public:
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			subresourceRange);
 
+#if !RAY_QUERY
 		drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex], frame.vertexBuffer, frame.indexBuffer);
+#endif
 
 		vkCmdWriteTimestamp(frame.commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frame.timeStampQueryPool, 0);
 

@@ -252,6 +252,7 @@ public:
 		bool vsync = false;
 		/** @brief Enable UI overlay */
 		bool overlay = true;
+		//bool overlay = false;
 	} settings;
 
 	/** @brief State of gamepad input (only used on Android) */
