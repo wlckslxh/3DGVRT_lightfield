@@ -16,8 +16,9 @@
 #include "../base/light.glsl"
 #include "../base/3dgs.glsl"
 #include "../base/utils.glsl"
+#include "../base/define.glsl"
 
-layout(local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = 1 * TB_SIZE_X, local_size_y = 1 * TB_SIZE_Y) in;
 
 // Initialized with default value. Appropriate value will be transfered from application.
 layout(constant_id = 0) const uint numOfLights = 1;	
@@ -329,8 +330,12 @@ bool processHit(
 
 void main()
 {
+	uvec2 gridId = gl_GlobalInvocationID.xy;
+	if (gridId.x >= windowSizeX || gridId.y >= windowSizeY)
+		return;
+
 	// set ray origin, direction
-	const vec2 inUV = vec2(gl_GlobalInvocationID.xy) / vec2(windowSizeX, windowSizeY);
+	const vec2 inUV = gridId / vec2(windowSizeX, windowSizeY);
 	vec2 d = inUV * 2.0f - 1.0f;	// pixel position in NDC
 
 	vec4 rayOrigin = uboDynamic.viewInverse[3];
@@ -397,5 +402,5 @@ void main()
 		}
 	}
 
-    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(rayRadiance, 1.0f));
+    imageStore(image, ivec2(gridId), vec4(rayRadiance, 1.0f));
 }

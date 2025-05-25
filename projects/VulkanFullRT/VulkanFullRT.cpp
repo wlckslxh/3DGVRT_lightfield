@@ -1103,7 +1103,7 @@ public:
 			subresourceRange);
 
 #if RAY_QUERY
-		vkCmdDispatch(frame.commandBuffer, width, height, 1);
+		vkCmdDispatch(frame.commandBuffer, (width + TB_SIZE_X - 1) / TB_SIZE_X, (height + TB_SIZE_Y - 1) / TB_SIZE_Y, 1);
 #else
 		VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
 		vkCmdTraceRaysKHR(
