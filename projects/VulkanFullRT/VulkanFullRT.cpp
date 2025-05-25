@@ -777,6 +777,7 @@ public:
 
 		VkComputePipelineCreateInfo computePipelineCreateInfo = vks::initializers::computePipelineCreateInfo(pipelineLayout, 0);
 		computePipelineCreateInfo.stage = loadShader(getShadersPath() + DIR_PATH + "particleRendering.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+		computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
 
 		VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &pipeline));
 	}

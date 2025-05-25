@@ -397,6 +397,5 @@ void main()
 		}
 	}
 
-//    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(rayRadiance, 1.0f));
-    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(0.0f, 0.0f, 1.0f, 1.0f));
+    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(rayRadiance, 1.0f));
 }

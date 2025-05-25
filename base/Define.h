@@ -19,7 +19,7 @@
 
 #define ASSET 0
 #define LOAD_GLTF 0
-#define RAY_QUERY 0
+#define RAY_QUERY 1
 
 #define MULTIQUEUE 0	// 0 is Default
 #define TIMER_CORRECTION 1
