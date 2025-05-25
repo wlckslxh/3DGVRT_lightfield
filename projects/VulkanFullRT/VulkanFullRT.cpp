@@ -1124,9 +1124,7 @@ public:
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			subresourceRange);
 
-#if !RAY_QUERY
 		drawUI(frame.commandBuffer, frameBuffers[frame.imageIndex], frame.vertexBuffer, frame.indexBuffer);
-#endif
 
 		vkCmdWriteTimestamp(frame.commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frame.timeStampQueryPool, 0);
 

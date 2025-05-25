@@ -3277,7 +3277,6 @@ void VulkanRTBase::setupRenderPass()
 	// Color attachment
 	attachments[0].format = swapChain.colorFormat;
 	attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
-	//attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;	// need to change?
 	attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;

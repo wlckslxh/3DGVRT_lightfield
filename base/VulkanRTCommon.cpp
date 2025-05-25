@@ -17,12 +17,6 @@ void VulkanRTCommon::setupRenderPass()
 
 	VkAttachmentLoadOp colorLoadOp{ VK_ATTACHMENT_LOAD_OP_LOAD };
 	VkImageLayout colorInitialLayout{ VK_IMAGE_LAYOUT_PRESENT_SRC_KHR };
-	
-	if (rayQueryOnly) {
-		// For samples that use ray queries with rasterization, we need to use a setup similar to the non-ray tracing samples
-		colorLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	}
 
 	std::array<VkAttachmentDescription, 2> attachments = {};
 	// Color attachment
