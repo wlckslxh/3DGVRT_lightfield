@@ -1076,7 +1076,7 @@ public:
 		{
 			handleResize();
 		}
-
+		vkResetCommandBuffer(frame.commandBuffer, 0);
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 		VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
@@ -1409,7 +1409,7 @@ public:
 	{
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		VulkanRTBase::prepareFrame(currentFrame);
-
+		updateUniformBuffer();
 		VkDescriptorImageInfo storageImageDescriptor{ VK_NULL_HANDLE, swapChain.buffers[currentFrame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
 		VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(currentFrame.descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
 		vkUpdateDescriptorSets(device, 1, &resultImageWrite, 0, VK_NULL_HANDLE);
@@ -1424,7 +1424,6 @@ public:
 			return;
 
 		//vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
-		updateUniformBuffer();
 
 		draw();
 	}
