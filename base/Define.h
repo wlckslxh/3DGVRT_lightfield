@@ -20,35 +20,29 @@
 #define ASSET 0
 #define LOAD_GLTF 0
 
-#define RAY_QUERY 1
+#define RAY_QUERY 0
 #define TB_SIZE_X 1	// Should be managed with define.glsl
 #define TB_SIZE_Y 2	// Should be managed with define.glsl
 
 #define MULTIQUEUE 0	// 0 is Default
 #define TIMER_CORRECTION 1
-#define TEXTURE_COMPRESSION 1
+#define TEXTURE_COMPRESSION 0
 
 #define USE_ANIMATION 0 // 0 is Default
 
 #define N_IS_UP		// Should be managed with 3DGRT Asset Num.
 
 #if ASSET == 0
-#define ASSET_PATH "models/suntemple_simple/SunTemple.gltf"
+#define ASSET_PATH "3DGRTModels/lego/"
 
 #elif ASSET == 1
-#define ASSET_PATH "models/sponza_multi_blas_transparent/Sponza.gltf"
+#define ASSET_PATH "3DGRTModels/bonsai/"
 
 #elif ASSET == 2
-#define ASSET_PATH "models/cornellBox/CornellBox.gltf"
+#define ASSET_PATH "3DGRTModels/chair/"
 
 #elif ASSET == 3
-#define ASSET_PATH "models/checkerboard/CheckerBoard.gltf"
-
-#elif ASSET == 4	
-#define ASSET_PATH "models/bistroexterior/BistroExterior.gltf"
-
-#elif ASSET == 5	
-#define ASSET_PATH "models/sponza_dynamic_multi_blas/Sponza.gltf"
+#define ASSET_PATH "3DGRTModels/hotdog/"
 #endif
 
 #if TEXTURE_COMPRESSION

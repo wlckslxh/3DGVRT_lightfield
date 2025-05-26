@@ -1296,7 +1296,7 @@ public:
 #endif
 
 		//gModel.load3DGRTObject(getAssetPath() + "3DGRTModels/lego/ckpt_last.pt", vulkanDevice);
-		gModel.load3DGRTModel(getAssetPath() + "3DGRTModels/lego/export_last.ply", vulkanDevice);
+		gModel.load3DGRTModel(getAssetPath() + ASSET_PATH + "export_last.ply", vulkanDevice);
 	}
 
 	bool initVulkan() {
