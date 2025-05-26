@@ -59,19 +59,6 @@ struct ParticleDensity {
 	float padding;
 };
 
-struct Param {
-	Aabb aabb;	// TLAS top level aabb
-
-#if BUFFER_REFERENCE
-	uint64_t densityBufferDeviceAddress;
-	uint64_t sphCoefficientBufferDeviceAddress;
-#endif
-
-	float minTransmittance;			// "configs/render/3dgrt.yaml - max_transmittance" : 0.001	(dynamic)
-	float hitMinGaussianResponse;	// "configs/render/3dgrt.yaml - particle_kernel_min_response" : 0.0113 (static)
-	uint sphEvalDegree;	// (less or equal than MAX_SPH_DEGREE) "configs/base_gs.yaml - max_n_features" : 3	(dynamic)
-};
-
 struct RayHit {
 	uint particleId;
 	float dist;

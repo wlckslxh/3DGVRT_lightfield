@@ -5,7 +5,7 @@
  *
  */
 
-vec3 safe_normalize(vec3 v) {
+vec3 safeNormalize(vec3 v) {
     const float l = v.x * v.x + v.y * v.y + v.z * v.z;
     return l > 0.0f ? (v * inversesqrt(l)) : v;
 }
@@ -31,19 +31,4 @@ mat3 quaternionWXYZToMatrix(const vec4 q) {
         2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx),
         2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy)
     );
-}
-
-vec2 intersectAABB(const Aabb aabb, vec3 rayOri, vec3 rayDir) {
-    vec3 t0 = (vec3(aabb.minX, aabb.minY, aabb.minZ) - rayOri) / max(rayDir, vec3(1e-6));
-    vec3 t1 = (vec3(aabb.maxX, aabb.maxY, aabb.maxZ) - rayOri) / max(rayDir, vec3(1e-6));
-    vec3 tmax = vec3(max(t0.x, t1.x), max(t0.y, t1.y), max(t0.z, t1.z));
-    vec3 tmin = vec3(min(t0.x, t1.x), min(t0.y, t1.y), min(t0.z, t1.z));
-    float maxOfMin = max(0.0f, max(tmin.x, max(tmin.y, tmin.z)));
-    float minOfMax = min(tmax.x, min(tmax.y, tmax.z));
-    return vec2(maxOfMin, minOfMax);
-}
-
-float sigmoid(float x)
-{
-    return 1.0f / (1.0f + exp(-x));
 }
