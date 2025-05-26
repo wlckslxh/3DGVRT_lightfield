@@ -78,6 +78,8 @@
 #include "SceneObjectManager.h"
 #include "Define.h"
 
+#include "cameraQuaternion.hpp"
+
 struct BaseFrameObject
 {
 	VkCommandBuffer commandBuffer{ VK_NULL_HANDLE };
@@ -290,6 +292,7 @@ public:
 	bool paused = false;
 
 	Camera camera;
+	QuaternionCamera quaternionCamera;
 
 	std::string title = "Vulkan Example";
 	std::string name = "vulkanExample";
