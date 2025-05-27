@@ -167,7 +167,7 @@ void fetchParticleDensity(
 void fetchParticleSphCoefficients(
 	const uint particleIdx,
 	//const float sphCoefficientBufferDeviceAddress,
-	out vec3 sphCoefficients[]) {
+	out vec3 sphCoefficients[SPH_MAX_NUM_COEFFS]) {
 	const uint particleOffset = particleIdx * SPH_MAX_NUM_COEFFS * 3;
 	for(unsigned int i = 0; i < SPH_MAX_NUM_COEFFS; i++){
 		const int offset = i * 3;
