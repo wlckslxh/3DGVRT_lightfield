@@ -1137,7 +1137,7 @@ public:
 	{
 		computeUniformData.numOfGaussians = gModel.splatSet.size();
 		computeUniformData.kernelMinResponse = 0.0113f;	// these values should be managed as config val
-		computeUniformData.opts = 0;
+		computeUniformData.opts = vks::utils::MOGRenderNone;
 		computeUniformData.degree = 4;
 
 		// mapping
