@@ -56,12 +56,6 @@ namespace vks
 				}
 			}
 		}
-
-#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-		for (uint32_t i = 0; i < supportedExtensions.size(); i++) {
-			LOGD("[EXTENSION] supported : %s\n", supportedExtensions[i].c_str());
-		}
-#endif
 	}
 
 	/** 
@@ -303,12 +297,6 @@ namespace vks
 			deviceCreateInfo.enabledExtensionCount = (uint32_t)deviceExtensions.size();
 			deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 		}
-
-#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-		for (uint32_t i = 0; i < deviceCreateInfo.enabledExtensionCount; i++) {
-			LOGD("[EXTENSION] requiring : %s\n", deviceCreateInfo.ppEnabledExtensionNames[i]);
-		}
-#endif
 
 		this->enabledFeatures = enabledFeatures;
 
