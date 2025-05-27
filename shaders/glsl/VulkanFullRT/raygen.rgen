@@ -103,8 +103,7 @@ void initializeRayPayload(){
 
 void trace(vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
 	initializeRayPayload();
-	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
-	//traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT|gl_RayFlagsCullBackFacingTrianglesEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
+	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT | gl_RayFlagsCullBackFacingTrianglesEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
 }
 
 void main()
@@ -134,7 +133,8 @@ void main()
 
 	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
 
-	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance)){
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance))
+	{
 		// Gather k hits
 		trace(rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
 		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){

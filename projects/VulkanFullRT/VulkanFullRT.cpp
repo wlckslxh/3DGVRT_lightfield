@@ -1208,7 +1208,7 @@ public:
 	{
 		gaussianEnclosingUniformData.numOfGaussians = gModel.splatSet.size();
 		gaussianEnclosingUniformData.kernelMinResponse = 0.0113f;	// these values should be managed as config val
-		gaussianEnclosingUniformData.opts = 0;
+		gaussianEnclosingUniformData.opts = vks::utils::MOGRenderNone;
 		gaussianEnclosingUniformData.degree = 4;
 
 		// mapping

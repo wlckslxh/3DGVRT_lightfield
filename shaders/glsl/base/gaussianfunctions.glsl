@@ -185,9 +185,9 @@ bool processHit(
 
 	const vec3 giscl   = vec3(1 / particleScale.x, 1 / particleScale.y, 1 / particleScale.z);
     const vec3 gposc   = (rayOrigin - particlePosition);
-    const vec3 gposcr  = (gposc * particleRotation);
+    const vec3 gposcr  = (particleRotation * gposc);
     const vec3 gro     = giscl * gposcr;
-    const vec3 rayDirR = rayDirection * particleRotation;
+    const vec3 rayDirR = particleRotation * rayDirection;
     const vec3 grdu    = giscl * rayDirR;
     const vec3 grd     = safeNormalize(grdu);
 

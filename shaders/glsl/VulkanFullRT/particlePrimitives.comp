@@ -116,7 +116,8 @@ void main()
 		const uint sSclIdx = idx * 3;
 
         mat3 rot;
-		rot = quaternionWXYZToMatrix(normalize(vec4(gRot[sRotIdx], gRot[sRotIdx + 1], gRot[sRotIdx + 2], gRot[sRotIdx + 3])));
+		vec4 quaternion = normalize(vec4(gRot[sRotIdx], gRot[sRotIdx + 1], gRot[sRotIdx + 2], gRot[sRotIdx + 3]));
+		rot = quaternionWXYZToMatrixTranspose(quaternion);
         const vec3 scl = exp(vec3(gScl[sSclIdx], gScl[sSclIdx + 1], gScl[sSclIdx + 2]));	//scale activation
         const vec3 trans = vec3(gPos[sPosIdx], gPos[sPosIdx + 1], gPos[sPosIdx + 2]);
 		float density = sigmoid(gDns[idx]);	//activation
@@ -131,7 +132,7 @@ void main()
         const vec3 kscl = kernelScale(density, ubo.kernelMinResponse, ubo.opts, ubo.degree) * scl * icosaVrtScale;
 #pragma unroll
         for (int i = 0; i < icosaHedronNumVrt; ++i) {
-			vec3 vert = (icosaHedronVrt[i] * kscl) * rot + trans;
+			vec3 vert = rot * (icosaHedronVrt[i] * kscl) + trans;
             gPrimVrt[sVertIdx + i * 3] = vert.x;
             gPrimVrt[sVertIdx + i * 3 + 1] = vert.y;
             gPrimVrt[sVertIdx + i * 3 + 2] = vert.z;
@@ -162,16 +163,16 @@ void main()
         writeParticleDensity[base + 1] = gPos[idx * 3 + 1];
         writeParticleDensity[base + 2] = gPos[idx * 3 + 2];
         // density
-        writeParticleDensity[base + 3] = gDns[idx];
+        writeParticleDensity[base + 3] = density;
         // quaternion
-        writeParticleDensity[base + 4] = gRot[idx * 4];
-        writeParticleDensity[base + 5] = gRot[idx * 4 + 1];
-        writeParticleDensity[base + 6] = gRot[idx * 4 + 2];
-        writeParticleDensity[base + 7] = gRot[idx * 4 + 3];
+		writeParticleDensity[base + 4] = quaternion.x;
+        writeParticleDensity[base + 5] = quaternion.y;
+        writeParticleDensity[base + 6] = quaternion.z;
+        writeParticleDensity[base + 7] = quaternion.w;
         // scale
-        writeParticleDensity[base + 8] = gScl[idx * 3];
-        writeParticleDensity[base + 9] = gScl[idx * 3 + 1];
-        writeParticleDensity[base + 10] = gScl[idx * 3 + 2];
+		writeParticleDensity[base + 8] = scl.x;
+        writeParticleDensity[base + 9] = scl.y;
+        writeParticleDensity[base + 10] = scl.z;
         // padding
         writeParticleDensity[base + 11] = 0.0; 
 

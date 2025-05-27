@@ -67,7 +67,14 @@ namespace vk3DGRT {
 					"f_rest_32", "f_rest_33", "f_rest_34", "f_rest_35", "f_rest_36", "f_rest_37", "f_rest_38",
 					"f_rest_39", "f_rest_40", "f_rest_41", "f_rest_42", "f_rest_43", "f_rest_44"))
 				{
-					reader.extract_properties(indices, 45, miniply::PLYPropertyType::Float, output.f_rest.data());
+					uint32_t reorderedIndices[45];
+					for (int i = 0; i < 15; i ++)
+					{	
+						reorderedIndices[i * 3] = indices[i];
+						reorderedIndices[i * 3 + 1] = indices[i + 15];
+						reorderedIndices[i * 3 + 2] = indices[i + 30];
+					}
+					reader.extract_properties(reorderedIndices, 45, miniply::PLYPropertyType::Float, output.f_rest.data());
 					loaded += numVerts * 45;
 				}
 				if (reader.find_properties(indices, 3, "x", "y", "z"))

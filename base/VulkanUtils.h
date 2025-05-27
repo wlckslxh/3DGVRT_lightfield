@@ -39,13 +39,21 @@ namespace vks {
 			// alignas(16) Params3DGRT params;
 		};
 
+		enum MOGRenderOpts {
+			MOGRenderNone = 0,
+			MOGRenderAdaptiveKernelClamping = 1 << 0,
+			MOGRenderWithNormals = 1 << 1,
+			MOGRenderWithHitCounts = 1 << 2,
+			MOGRenderDefault = MOGRenderNone
+		};
+
 		struct UniformDataStatic {
 			alignas(16) Light lights[NUM_OF_STATIC_LIGHTS];
 			/* 3DGRT */
 			alignas(16) Aabb aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
 			alignas(16) float minTransmittance = 0.001f; // to be separated to Config.h?
 			alignas(4) float hitMinGaussianResponse = 0.0113f;	// particle kernel min response. to be separated to Config.h?
-			alignas(4) unsigned int sphEvalDegree = 0;	// n active features. to be separated to Config.h?
+			alignas(4) unsigned int sphEvalDegree = 3;	// n active features. to be separated to Config.h?
 #if BUFFER_REFERENCE
 			uint64_t densityBufferDeviceAddress;
 			uint64_t sphCoefficientBufferDeviceAddress;
