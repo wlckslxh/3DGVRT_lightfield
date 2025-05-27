@@ -17,7 +17,7 @@
 #define MEASURE_FRAME 2000
 #endif
 
-#define ASSET 0
+#define ASSET 3
 #define LOAD_GLTF 0
 
 #define RAY_QUERY 0
