@@ -3763,8 +3763,8 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 		camera.setRotation(glm::vec3(-14.949973, 393.002319, 0.000000));
 		break;
 	case 1:
-		camera.setTranslation(glm::vec3(-1.495003, 1.402008, 1.792632));
-		camera.setRotation(glm::vec3(-24.149887, 324.800903, 0.000000));
+		camera.setTranslation(glm::vec3(-0.032561, 3.701800, 3.788660));
+		camera.setRotation(glm::vec3(-43.374847, 175.450668, 0.000000));
 		break;
 	case 2:
 		camera.setTranslation(glm::vec3(0.003964, 1.457728, -2.351941));
