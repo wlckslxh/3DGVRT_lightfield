@@ -788,6 +788,28 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	if (ImGui::Button("2")) {
 		setCamera(2);
 	}
+
+#if QUATERNION_CAMERA
+	/* flip axis buttons */
+	ImGui::Text("Flip Axis");
+	ImGui::SameLine();
+	if (ImGui::Button(" x ")) {
+		quaternionCamera.flipX();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button(" y ")) {
+		quaternionCamera.flipY();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button(" z ")) {
+		quaternionCamera.flipZ();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button(" w ")) {
+		quaternionCamera.flipW();
+	}
+#endif
+
 	ImGui::Separator();
 	ImGui::Text("Light Attenuation Factor");
 	ImGui::SliderFloat("_alpha", &pushConstants.lightAttVar.alpha, 0.001f, 1.0f);
@@ -796,7 +818,7 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	ImGui::Separator();
 
 	//static const char* camNames[] = { "0","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29" };
-	static vector<string> camNames = camera.getCamNames();
+	static vector<string> camNames = quaternionCamera.getCamNames();
 	static const char* current_item = "0";
 	
 	ImGui::Text("loaded cameras");
@@ -809,7 +831,11 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 				current_item = camNames[n].c_str();
 				if(!is_selected){
 					//ImGui::SetItemDefaultFocus();
+#if QUATERNION_CAMERA
+					quaternionCamera.setDatasetCamera(quaternionCamera.dataType, n, (float)width / height);
+#else
 					camera.setDatasetCamera(camera.dataType, n, (float)width / height);
+#endif
 				}
 			}
 		}
@@ -1679,7 +1705,7 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		}
 
 		
-		if (camera.type == Camera::firstperson || camera.type == Camera::SG_camera)
+		//if (camera.type == Camera::firstperson || camera.type == Camera::SG_camera)
 		{
 			switch (wParam)
 			{
@@ -1711,8 +1737,13 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				break;
 #endif
 			case KEY_P:
+#if QUATERNION_CAMERA
+				printf("quaternionCamera.setTranslation(glm::vec3(%f, %f, %f));\n", quaternionCamera.position.x, quaternionCamera.position.y, quaternionCamera.position.z);
+				printf("quaternionCamera.setRotation(glm::quat(%f, %f, %f, %f));\n", quaternionCamera.rotation.x, quaternionCamera.rotation.y, quaternionCamera.rotation.z, quaternionCamera.rotation.w);
+#else
 				printf("camera.setTranslation(glm::vec3(%f, %f, %f));\n", camera.position.x, camera.position.y, camera.position.z);
 				printf("camera.setRotation(glm::vec3(%f, %f, %f));\n", camera.rotation.x, camera.rotation.y, camera.rotation.z);
+#endif
 				break;
 			case KEY_R:
 				camera.setRotation(glm::vec3(-3.199999, -88.599998, 0.000000));
@@ -3794,8 +3825,19 @@ void VulkanRTBase::loadCubemap(std::string filename, VkFormat format)
 	ktxTexture_Destroy(ktxTexture);
 }
 
-void VulkanRTBase::initCamera(Camera::DatasetType type, string path)
+void VulkanRTBase::initCamera(DatasetType type, string path)
 {
+#if QUATERNION_CAMERA
+	if (type != DatasetType::none) {
+		quaternionCamera.setPerspective(FOV_Y, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);
+		quaternionCamera.loadDatasetCamera(type, path, width, height);
+		quaternionCamera.setDatasetCamera(type, 0, (float)width / (float)height);
+	}
+	else {
+		quaternionCamera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 5000.0f);
+		setCamera(0);
+	}
+#else
 	camera.type = Camera::CameraType::SG_camera;
 	camera.movementSpeed = 5.0f;
 #ifndef __ANDROID__
@@ -3804,17 +3846,13 @@ void VulkanRTBase::initCamera(Camera::DatasetType type, string path)
 	if (type != Camera::DatasetType::none) {
 		camera.setNearFar(NEAR_PLANE, FAR_PLANE);
 		camera.loadDatasetCamera(type, path, width, height);
-		camera.setDatasetCamera(type, 0, (float)width/(float)height);
+		camera.setDatasetCamera(type, 0, (float)width / (float)height);
 	}
 	else {
-#if QUATERNION_CAMERA
-		quaternionCamera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 5000.0f);
-		setCamera(0);
-#else
 		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 5000.0f);
 		setCamera(0);
-#endif
 	}
+#endif
 }
 
 void VulkanRTBase::setCamera(uint32_t camIdx)

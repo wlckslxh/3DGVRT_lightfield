@@ -517,7 +517,7 @@ public:
 	void loadCubemap(std::string filename, VkFormat format);
 
 	// camera setting
-	void initCamera(Camera::DatasetType type = Camera::DatasetType::none, std::string path = "");
+	void initCamera(DatasetType type = DatasetType::none, std::string path = "");
 	void setCamera(uint32_t camIdx);
 };
 

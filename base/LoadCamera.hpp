@@ -13,17 +13,20 @@
 #include <vector>
 #include <cmath>
 #include "json.hpp"
+#include <glm/gtx/matrix_decompose.hpp>
 
 #define RAD2DEGREE 57.2957795131
 
 using namespace std;
 using json = nlohmann::json;
 
+enum DatasetType { none, nerf, collmap };
+
 struct CameraFrame {
 	string filePath;
 	glm::mat4 transformMatrix;
-	glm::mat3 rotation;
-	glm::mat3 position;
+	glm::quat rotation;
+	glm::vec3 position;
 };
 
 struct NerfCameraData {
@@ -55,7 +58,26 @@ private:
 		frame.transformMatrix = glm::mat4(1.0f);
 		frame.transformMatrix = glm::mat4(R_inv);
 		frame.transformMatrix[3] = glm::vec4(T_inv, 1.0f);
+
+		frame.position = -T_inv;
+		frame.rotation = glm::normalize(glm::quat_cast(R_inv));
 		nerfCameras.centers.push_back(T_inv);
+
+		frame.position = -glm::vec3(frame.transformMatrix[3]);  // translation
+		
+		glm::vec3 scale;
+		scale.x = glm::length(glm::vec3(frame.transformMatrix[0]));
+		scale.y = glm::length(glm::vec3(frame.transformMatrix[1]));
+		scale.z = glm::length(glm::vec3(frame.transformMatrix[2]));
+
+		// 회전 행렬 만들기 (scale 제거)
+		glm::mat3 rotationMatrix;
+		rotationMatrix[0] = glm::vec3(frame.transformMatrix[0]) / scale.x;
+		rotationMatrix[1] = glm::vec3(frame.transformMatrix[1]) / scale.y;
+		rotationMatrix[2] = glm::vec3(frame.transformMatrix[2]) / scale.z;
+
+		// 회전 쿼터니언 추출
+		frame.rotation = glm::quat_cast(rotationMatrix);
 	}
 
 public:

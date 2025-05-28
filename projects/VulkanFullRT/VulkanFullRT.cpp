@@ -128,7 +128,7 @@ public:
 	{
 		title = "Abura Soba - Vulkan Full Ray Tracing";
 #if LOAD_NERF_CAMERA
-		initCamera(Camera::DatasetType::nerf, getAssetPath() + "3DGRTModels/lego/transforms_val.json");
+		initCamera(DatasetType::nerf, getAssetPath() + "3DGRTModels/lego/transforms_val.json");
 #else
 		initCamera();
 #endif

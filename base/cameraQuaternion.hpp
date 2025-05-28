@@ -16,7 +16,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-
 #include "LoadCamera.hpp"
 #include "Define.h"
 
@@ -32,6 +31,9 @@ public:
 
     bool updated;
 
+    CameraLoader cameraLoader;
+    DatasetType dataType;
+    glm::mat4 viewMatrix;
 
     QuaternionCamera()
         : position(0.0f, 0.0f, 0.0f), rotation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f)), perspective(glm::mat4(0.0f)) {
@@ -43,8 +45,9 @@ public:
 
     glm::mat4 getViewMatrix() const {
         // 쿼터니언을 행렬로 변환하고, 역행렬 적용 (View matrix)
-        glm::mat4 rotMat = glm::toMat4(glm::conjugate(rotation));
+        glm::mat4 rotMat = glm::mat4_cast(rotation);
         glm::mat4 transMat = glm::translate(glm::mat4(1.0f), -position);
+        //return viewMatrix;
         return rotMat * transMat;
     }
 
@@ -113,5 +116,47 @@ public:
 
     glm::vec3 getUp() const {
         return rotation * glm::vec3(0, 1, 0);
+    }
+
+    /* load nerf camera */
+    const vector<string> getCamNames() {
+        return cameraLoader.camNames;
+    }
+
+    void setNerfCamera(uint32_t idx) {
+        CameraFrame* frame = &cameraLoader.nerfCameras.frames[idx];
+        this->rotation = frame->rotation;
+        this->position = frame->position;
+        //viewMatrix = frame->transformMatrix;
+        //perspective = cameraLoader.nerfCameras.projectionMatrix;
+    }
+
+    void setDatasetCamera(DatasetType type, uint32_t idx, float aspect) {
+        if (type == nerf) {
+            //setPerspective(cameraLoader.fovy, aspect, znear, zfar);
+            setPerspective(FOV_Y, aspect, znear, zfar);
+            setNerfCamera(idx);
+        }
+    }
+
+    void loadDatasetCamera(DatasetType type, string path, uint32_t width, uint32_t height) {
+        if (type == nerf) {
+            cameraLoader.loadNerfCameraData(path, width, height, znear, zfar);
+            //cameraLoader.PrintCameraData(cameraLoader.nerfCameras);
+        }
+        dataType = type;
+    }
+
+    void flipX() {
+        rotation.x *= -1;
+    }
+    void flipY() {
+        rotation.y *= -1;
+    }
+    void flipZ() {
+        rotation.z *= -1;
+    }
+    void flipW() {
+        rotation.w *= -1;
     }
 };

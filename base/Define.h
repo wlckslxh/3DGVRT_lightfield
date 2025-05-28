@@ -21,7 +21,7 @@
 #define CAM_MOVE_SPEED 15.0f
 #define CAM_ROTATION_SPEED 50.0f
 
-#define LOAD_NERF_CAMERA false
+#define LOAD_NERF_CAMERA true
 #define NEAR_PLANE 0.1
 #define FAR_PLANE 5000
 #define FOV_Y 35

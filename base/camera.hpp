@@ -53,7 +53,6 @@ private:
 
 public:
 	enum CameraType { lookat, firstperson, SG_camera, cameraSize};
-	enum DatasetType {none, nerf, collmap};
 	CameraType type = CameraType::lookat;
 	glm::vec3 rotation = glm::vec3();
 	glm::vec3 position = glm::vec3();
