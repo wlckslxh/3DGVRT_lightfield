@@ -17,9 +17,16 @@
 #define MEASURE_FRAME 2000
 #endif
 
-#define ASSET 3
+#define ASSET 0
 #define LOAD_GLTF 0
 
+ // ---------- split blas ---------- //
+#define SPLIT_BLAS 1		// This macro should be managed with define.glsl
+#define NUMBER_OF_CELLS_PER_LONGEST_AXIS 10
+#define SCENE_EPSILON 1e-4f
+#define ONE_VERTEX_BUFFER false
+
+// ---------- compute pipeline ray query ---------- //
 #define RAY_QUERY 0
 #define TB_SIZE_X 1	// Should be managed with define.glsl
 #define TB_SIZE_Y 2	// Should be managed with define.glsl

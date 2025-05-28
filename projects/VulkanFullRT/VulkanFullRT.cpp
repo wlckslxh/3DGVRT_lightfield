@@ -17,6 +17,10 @@
 #include "SimpleUtils.h"
 #include "Vulkan3DGRTModel.h"
 
+#if SPLIT_BLAS
+#include "SplitBLAS.hpp"
+#endif
+
 #define DIR_PATH "VulkanFullRT/"
 
 class VulkanFullRT : public VulkanRTCommon
@@ -47,6 +51,12 @@ public:
 	// For 3DGRT Model
 	AccelerationStructure bottomLevelAS3DGRT{};
 	AccelerationStructure topLevelAS3DGRT{};
+
+#if SPLIT_BLAS
+	SplitBLAS splitBLAS;
+	std::vector<vks::Buffer> splittedVertices;
+	std::vector<vks::Buffer> splittedIndices;
+#endif
 
 	vks::Buffer transformBuffer3DGRT;
 
@@ -1392,8 +1402,13 @@ public:
 		createTopLevelAccelerationStructure();
 #endif
 
+#if SPLIT_BLAS
+		splitBLAS.init(vulkanDevice);
+		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
+#endif
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
+
 
 		// (2) Particle Rendering pass
 		createDescriptorSets();
