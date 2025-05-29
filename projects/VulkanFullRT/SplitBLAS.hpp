@@ -27,14 +27,25 @@ private:
 
 	glm::vec3 minPos{ FLT_MAX ,FLT_MAX ,FLT_MAX }, maxPos{ -FLT_MAX,-FLT_MAX,-FLT_MAX };
 
-	vector<vks::Buffer> splittedVertices;
-	vector<vks::Buffer> splittedIndices;
-	vector<vks::Buffer> splittedPrimitiveIds;
-
 	vector<float> vertices;
 	vector<uint32_t> indices;
+	uint32_t vertCnt;
+	uint32_t idxCnt;
+	
+	uint32_t numCellsTotal;
+	vector<vector<glm::vec3>> h_splittedVert;
+	vector<vector<float>> h_splittedVertFP;
+	vector<vector<uint32_t>> h_splittedIdx;
+	vector<vector<uint32_t>> h_splittedPrimitiveId;
 
-	vector<vector<uint32_t>> primitiveIds;
+	struct Attribute {
+		uint32_t count;
+		vks::Buffer buffer;
+	};
+
+	vector<Attribute> d_splittedVertices;
+	vector<Attribute> d_splittedIndices;
+	vector<Attribute> d_splittedPrimitiveIds;
 
 public:
 	void init(vks::VulkanDevice* device) {
@@ -45,6 +56,8 @@ public:
 	void copyDeviceToHost(vks::Buffer& vertexBuffer, vks::Buffer& indexBuffer, VkQueue& queue) {
 		vertices.resize(vertexBuffer.size);
 		indices.resize(indexBuffer.size);
+		vertCnt = vertexBuffer.size;
+		idxCnt = indexBuffer.size;
 
 		/*** Vetices ***/
 		vks::Buffer stagingBuffer;
@@ -83,7 +96,7 @@ public:
 		vkFreeMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, nullptr);
 	}
 
-	void saveGeometries_SBLAS(std::vector<glm::vec3>& vertexBuffer, std::vector<uint32_t>& indexBuffer, VkQueue transferQueue) {
+	void saveGeometries_SBLAS(std::vector<glm::vec3>& vertexBuffer, std::vector<uint32_t>& indexBuffer) {
 		/* split cells with aabb-triangle clipping */
 		for (int i = 0; i < vertexBuffer.size(); i++) {
 			if (vertexBuffer[i].x > maxPos.x) maxPos.x = vertexBuffer[i].x;
@@ -105,11 +118,11 @@ public:
 			(maxSize == sceneSize.y) ? NUMBER_OF_CELLS_PER_LONGEST_AXIS : static_cast<int>(sceneSize.y / gridSize) + 1,
 			(maxSize == sceneSize.z) ? NUMBER_OF_CELLS_PER_LONGEST_AXIS : static_cast<int>(sceneSize.z / gridSize) + 1
 		);
-		const uint32_t numCellsTotal = numCells.x * numCells.y * numCells.z;
+		numCellsTotal = numCells.x * numCells.y * numCells.z;
 
-		std::vector<std::vector<glm::vec3>> splittedVert(numCellsTotal);
-		std::vector<std::vector<uint32_t>> splittedIdx(numCellsTotal);
-		primitiveIds.resize(numCellsTotal);
+		h_splittedVert.resize(numCellsTotal);
+		h_splittedIdx.resize(numCellsTotal);
+		h_splittedPrimitiveId.resize(numCellsTotal);
 
 		auto calcIdx = [numCells](glm::ivec3 idx)->int {return numCells.x * numCells.y * idx.z + numCells.x * idx.y + idx.x; };
 		assert(indexBuffer.size() % 3 == 0);
@@ -150,115 +163,140 @@ public:
 				for (int k = 1; k < polygon.size() - 1; ++k) {
 					// TODO : remove vertex redundancy
 					if (uniqueVertices[cellIdx].count(polygon[0]) == 0) {
-						uniqueVertices[cellIdx][polygon[0]] = static_cast<uint32_t>(splittedVert[cellIdx].size());
-						splittedVert[cellIdx].push_back(polygon[0]);
+						uniqueVertices[cellIdx][polygon[0]] = static_cast<uint32_t>(h_splittedVert[cellIdx].size());
+						h_splittedVert[cellIdx].push_back(polygon[0]);
 					}
-					splittedIdx[cellIdx].push_back(uniqueVertices[cellIdx][polygon[0]]);
+					h_splittedIdx[cellIdx].push_back(uniqueVertices[cellIdx][polygon[0]]);
 
 					if (uniqueVertices[cellIdx].count(polygon[k]) == 0) {
-						uniqueVertices[cellIdx][polygon[k]] = static_cast<uint32_t>(splittedVert[cellIdx].size());
-						splittedVert[cellIdx].push_back(polygon[k]);
+						uniqueVertices[cellIdx][polygon[k]] = static_cast<uint32_t>(h_splittedVert[cellIdx].size());
+						h_splittedVert[cellIdx].push_back(polygon[k]);
 					}
-					splittedIdx[cellIdx].push_back(uniqueVertices[cellIdx][polygon[k]]);
+					h_splittedIdx[cellIdx].push_back(uniqueVertices[cellIdx][polygon[k]]);
 
 					if (uniqueVertices[cellIdx].count(polygon[k + 1]) == 0) {
-						uniqueVertices[cellIdx][polygon[k + 1]] = static_cast<uint32_t>(splittedVert[cellIdx].size());
-						splittedVert[cellIdx].push_back(polygon[k + 1]);
+						uniqueVertices[cellIdx][polygon[k + 1]] = static_cast<uint32_t>(h_splittedVert[cellIdx].size());
+						h_splittedVert[cellIdx].push_back(polygon[k + 1]);
 					}
-					splittedIdx[cellIdx].push_back(uniqueVertices[cellIdx][polygon[k + 1]]);
+					h_splittedIdx[cellIdx].push_back(uniqueVertices[cellIdx][polygon[k + 1]]);
 
-					primitiveIds[cellIdx].push_back(primitiveId);
+					h_splittedPrimitiveId[cellIdx].push_back(primitiveId);
 				}
 			}
 			primitiveId++;
 		}
+	}
 
-		//struct StagingBuffer {
-		//	VkBuffer buffer;
-		//	VkDeviceMemory memory;
-		//};
+	void copyToDevice(VkQueue& queue) {
+		struct StagingBuffer {
+			VkBuffer buffer;
+			VkDeviceMemory memory;
+		};
 
-		//int totalVert = 0;
-		//int totalVertSize = 0;
-		//int totalIndex = 0;
-		//int totalIndexSize = 0;
-		//for (int i = 0; i < numCellsTotal; i++) {
+		VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
-		//	size_t vertexBufferSize = splittedVert[i].size() * sizeof(glm::vec3);
-		//	size_t indexBufferSize = splittedIdx[i].size() * sizeof(uint32_t);
-		//	if (vertexBufferSize == 0) continue;
+		int totalVert = 0;
+		int totalVertSize = 0;
+		int totalIndex = 0;
+		int totalIndexSize = 0;
+		for (int i = 0; i < numCellsTotal; i++) {
+			size_t vertexBufferSize = h_splittedVertFP[i].size() * sizeof(float);
+			size_t indexBufferSize = h_splittedIdx[i].size() * sizeof(uint32_t);
+			size_t primitiveIdBufferSize = h_splittedPrimitiveId.size() * sizeof(uint32_t);
+			if (vertexBufferSize == 0) continue;
 
-		//	Vertices cellVertices;
-		//	Indices cellIndices;
-		//	cellVertices.count = static_cast<uint32_t>(splittedVert[i].size());
-		//	cellIndices.count = static_cast<uint32_t>(splittedIdx[i].size());
-		//	totalVert += cellVertices.count;
-		//	totalVertSize += vertexBufferSize;
-		//	totalIndex += cellIndices.count;
-		//	totalIndexSize += indexBufferSize;
+			Attribute cellVertices;
+			Attribute cellIndices;
+			Attribute cellPrimitiveIds;
+			cellVertices.count = static_cast<uint32_t>(h_splittedVert[i].size());
+			cellIndices.count = static_cast<uint32_t>(h_splittedIdx[i].size());
+			cellPrimitiveIds.count = static_cast<uint32_t>(h_splittedPrimitiveId[i].size());
+			totalVert += cellVertices.count;
+			totalVertSize += vertexBufferSize;
+			totalIndex += cellIndices.count;
+			totalIndexSize += indexBufferSize;
 
-		//	//assert((vertexBufferSize > 0) && (indexBufferSize > 0));
+			StagingBuffer vertexStaging, indexStaging, primitiveIdStaging;
 
-		//	StagingBuffer vertexStaging, indexStaging;
+			// Vertex
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				vertexBufferSize,
+				&vertexStaging.buffer,
+				&vertexStaging.memory,
+				h_splittedVertFP[i].data()));
+			// Index
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				indexBufferSize,
+				&indexStaging.buffer,
+				&indexStaging.memory,
+				h_splittedIdx[i].data()));
+			// Primitive
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				primitiveIdBufferSize,
+				&primitiveIdStaging.buffer,
+				&primitiveIdStaging.memory,
+				h_splittedPrimitiveId[i].data()));
 
-		//	// Vertex
-		//	VK_CHECK_RESULT(device->createBuffer(
-		//		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		//		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		//		vertexBufferSize,
-		//		&vertexStaging.buffer,
-		//		&vertexStaging.memory,
-		//		splittedVert[i].data()));
-		//	// Index
-		//	VK_CHECK_RESULT(device->createBuffer(
-		//		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		//		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		//		indexBufferSize,
-		//		&indexStaging.buffer,
-		//		&indexStaging.memory,
-		//		splittedIdx[i].data()));
+			// Create device local buffers
+			// Vertex buffer
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				vertexBufferSize,
+				&cellVertices.buffer.buffer,
+				&cellVertices.buffer.memory));
+			// Index buffer
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(
+				VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				indexBufferSize,
+				&cellIndices.buffer.buffer,
+				&cellIndices.buffer.memory));
+			// Primitive Id buffer
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(
+				VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				primitiveIdBufferSize,
+				&cellPrimitiveIds.buffer.buffer,
+				&cellPrimitiveIds.buffer.memory));
 
-		//	// Create device local buffers
-		//	// Vertex buffer
-		//	VK_CHECK_RESULT(device->createBuffer(
-		//		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags,
-		//		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		//		vertexBufferSize,
-		//		&cellVertices.buffer,
-		//		&cellVertices.memory));
-		//	// Index buffer
-		//	VK_CHECK_RESULT(device->createBuffer(
-		//		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags,
-		//		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		//		indexBufferSize,
-		//		&cellIndices.buffer,
-		//		&cellIndices.memory));
+			// Copy from staging buffers
+			VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
-		//	// Copy from staging buffers
-		//	VkCommandBuffer copyCmd = device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+			VkBufferCopy copyRegion = {};
 
-		//	VkBufferCopy copyRegion = {};
+			copyRegion.size = vertexBufferSize;
+			vkCmdCopyBuffer(copyCmd, vertexStaging.buffer, cellVertices.buffer.buffer, 1, &copyRegion);
 
-		//	copyRegion.size = vertexBufferSize;
-		//	vkCmdCopyBuffer(copyCmd, vertexStaging.buffer, cellVertices.buffer, 1, &copyRegion);
+			copyRegion.size = indexBufferSize;
+			vkCmdCopyBuffer(copyCmd, indexStaging.buffer, cellIndices.buffer.buffer, 1, &copyRegion);
 
-		//	copyRegion.size = indexBufferSize;
-		//	vkCmdCopyBuffer(copyCmd, indexStaging.buffer, cellIndices.buffer, 1, &copyRegion);
+			copyRegion.size = primitiveIdBufferSize;
+			vkCmdCopyBuffer(copyCmd, primitiveIdStaging.buffer, cellPrimitiveIds.buffer.buffer, 1, &copyRegion);
 
-		//	splittedVertices.push_back(cellVertices);
-		//	splittedIndices.push_back(cellIndices);
+			d_splittedVertices.push_back(cellVertices);
+			d_splittedIndices.push_back(cellIndices);
+			d_splittedPrimitiveIds.push_back(cellPrimitiveIds);
 
-		//	device->flushCommandBuffer(copyCmd, transferQueue, true);
+			vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
 
-		//	vkDestroyBuffer(device->logicalDevice, vertexStaging.buffer, nullptr);
-		//	vkFreeMemory(device->logicalDevice, vertexStaging.memory, nullptr);
-		//	vkDestroyBuffer(device->logicalDevice, indexStaging.buffer, nullptr);
-		//	vkFreeMemory(device->logicalDevice, indexStaging.memory, nullptr);
-		//}
-		//std::cout << "total Vert : " << totalVert << "\n";
-		//std::cout << "total Vert Size : " << totalVertSize << "\n";
-		//std::cout << "total Index : " << totalIndex << "\n";
-		//std::cout << "total Index Size : " << totalIndexSize << "\n";
+			vkDestroyBuffer(vulkanDevice->logicalDevice, vertexStaging.buffer, nullptr);
+			vkFreeMemory(vulkanDevice->logicalDevice, vertexStaging.memory, nullptr);
+			vkDestroyBuffer(vulkanDevice->logicalDevice, indexStaging.buffer, nullptr);
+			vkFreeMemory(vulkanDevice->logicalDevice, indexStaging.memory, nullptr);
+			vkDestroyBuffer(vulkanDevice->logicalDevice, primitiveIdStaging.buffer, nullptr);
+			vkFreeMemory(vulkanDevice->logicalDevice, primitiveIdStaging.memory, nullptr);
+		}
+		std::cout << "total Vert : " << totalVert << "\n";
+		std::cout << "total Vert Size : " << totalVertSize << "\n";
+		std::cout << "total Index : " << totalIndex << "\n";
+		std::cout << "total Index Size : " << totalIndexSize << "\n";
 	}
 
 	void splitBlas(vks::Buffer& vertexBuffer, vks::Buffer& indexBuffer, VkQueue& queue) {
@@ -269,6 +307,17 @@ public:
 		for (int i = 0; i < vertices.size(); i += 3) {
 			verticesVec3.push_back(glm::vec3(vertices[i], vertices[i + 1], vertices[i + 2]));
 		}
-		saveGeometries_SBLAS(verticesVec3, indices, queue);
+		saveGeometries_SBLAS(verticesVec3, indices);
+
+		h_splittedVertFP.resize(numCellsTotal);
+		for (int i = 0; i < h_splittedVert.size(); i++) {
+			for (int j = 0; j < h_splittedVert[i].size(); j++) {
+				h_splittedVertFP[i].push_back(h_splittedVert[i][j].x);
+				h_splittedVertFP[i].push_back(h_splittedVert[i][j].y);
+				h_splittedVertFP[i].push_back(h_splittedVert[i][j].z);
+			}
+		}
+
+		copyToDevice(queue);
 	}
 };
