@@ -54,8 +54,6 @@ public:
 
 #if SPLIT_BLAS
 	SplitBLAS splitBLAS;
-	std::vector<vks::Buffer> splittedVertices;
-	std::vector<vks::Buffer> splittedIndices;
 #endif
 
 	vks::Buffer transformBuffer3DGRT;
@@ -1405,10 +1403,11 @@ public:
 #if SPLIT_BLAS
 		splitBLAS.init(vulkanDevice);
 		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
-#endif
+		splitBLAS.createAS(graphicsQueue);
+#else
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
-
+#endif
 
 		// (2) Particle Rendering pass
 		createDescriptorSets();
