@@ -37,6 +37,7 @@ private:
 	vector<vector<float>> h_splittedVertFP;
 	vector<vector<uint32_t>> h_splittedIdx;
 	vector<vector<uint32_t>> h_splittedPrimitiveId;
+	vector<uint64_t> h_splittedPrimitiveIdsDeviceAddress;
 
 	struct Attribute {
 		uint32_t count;
@@ -78,7 +79,7 @@ private:
 		/*** Vetices ***/
 		vks::Buffer stagingBuffer;
 		stagingBuffer.size = vertexBuffer.size;
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer.size, &stagingBuffer.buffer, &stagingBuffer.memory, nullptr));
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer.size, &stagingBuffer.buffer, &stagingBuffer.memory, nullptr));
 
 		VkBufferCopy copyRegion;
 		copyRegion.srcOffset = 0;
@@ -96,7 +97,7 @@ private:
 
 		/*** Indices ***/
 		stagingBuffer.size = indexBuffer.size;
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer.size, &stagingBuffer.buffer, &stagingBuffer.memory, nullptr));
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer.size, &stagingBuffer.buffer, &stagingBuffer.memory, nullptr));
 
 		copyRegion.srcOffset = 0;
 		copyRegion.dstOffset = 0;
@@ -177,7 +178,6 @@ private:
 
 				if (polygon.size() == 0) continue;
 				for (int k = 1; k < polygon.size() - 1; ++k) {
-					// TODO : remove vertex redundancy
 					if (uniqueVertices[cellIdx].count(polygon[0]) == 0) {
 						uniqueVertices[cellIdx][polygon[0]] = static_cast<uint32_t>(h_splittedVert[cellIdx].size());
 						h_splittedVert[cellIdx].push_back(polygon[0]);
@@ -196,7 +196,7 @@ private:
 					}
 					h_splittedIdx[cellIdx].push_back(uniqueVertices[cellIdx][polygon[k + 1]]);
 
-					h_splittedPrimitiveId[cellIdx].push_back(primitiveId);
+					h_splittedPrimitiveId[cellIdx].push_back(primitiveId / 20);
 				}
 			}
 			primitiveId++;
@@ -215,10 +215,12 @@ private:
 		int totalVertSize = 0;
 		int totalIndex = 0;
 		int totalIndexSize = 0;
+		int totalPrimitiveId = 0;
+		int totalPrimitiveIdSize = 0;
 		for (int i = 0; i < numCellsTotal; i++) {
 			size_t vertexBufferSize = h_splittedVertFP[i].size() * sizeof(float);
 			size_t indexBufferSize = h_splittedIdx[i].size() * sizeof(uint32_t);
-			size_t primitiveIdBufferSize = h_splittedPrimitiveId.size() * sizeof(uint32_t);
+			size_t primitiveIdBufferSize = h_splittedPrimitiveId[i].size() * sizeof(uint32_t);
 			if (vertexBufferSize == 0) continue;
 
 			Attribute cellVertices;
@@ -231,6 +233,8 @@ private:
 			totalVertSize += vertexBufferSize;
 			totalIndex += cellIndices.count;
 			totalIndexSize += indexBufferSize;
+			totalPrimitiveId += cellPrimitiveIds.count;
+			totalPrimitiveIdSize += primitiveIdBufferSize;
 
 			StagingBuffer vertexStaging, indexStaging, primitiveIdStaging;
 
@@ -276,7 +280,7 @@ private:
 				&cellIndices.buffer.memory));
 			// Primitive Id buffer
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(
-				VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags,
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsageFlags,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				primitiveIdBufferSize,
 				&cellPrimitiveIds.buffer.buffer,
@@ -313,6 +317,45 @@ private:
 		std::cout << "total Vert Size : " << totalVertSize << "\n";
 		std::cout << "total Index : " << totalIndex << "\n";
 		std::cout << "total Index Size : " << totalIndexSize << "\n";
+		std::cout << "total PrimitiveID : " << totalPrimitiveId << "\n";
+		std::cout << "total PrimitiveID Size : " << totalPrimitiveIdSize << "\n";
+	}
+
+	void createSplittedPrimitiveIdsBuffer(VkQueue queue) {
+		for (int i = 0; i < d_splittedPrimitiveIds.size(); i++) {
+			h_splittedPrimitiveIdsDeviceAddress.push_back(getBufferDeviceAddress(d_splittedPrimitiveIds[i].buffer.buffer));
+		}
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingMemory;
+
+		uint32_t primitiveIdSize = static_cast<uint32_t>(d_splittedPrimitiveIds.size() * sizeof(uint64_t));
+		
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			primitiveIdSize,
+			&stagingBuffer,
+			&stagingMemory,
+			h_splittedPrimitiveIdsDeviceAddress.data()
+		));
+
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			&d_splittedPrimitiveIdsDeviceAddress,
+			primitiveIdSize,
+			(void*)nullptr));
+
+		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+		VkBufferCopy copyRegion = {};
+
+		copyRegion.size = primitiveIdSize;
+		vkCmdCopyBuffer(copyCmd, stagingBuffer, d_splittedPrimitiveIdsDeviceAddress.buffer, 1, &copyRegion);
+
+		vulkanDevice->flushCommandBuffer(copyCmd, queue, true);
+		vkDestroyBuffer(vulkanDevice->logicalDevice, stagingBuffer, nullptr);
+		vkFreeMemory(vulkanDevice->logicalDevice, stagingMemory, nullptr);
 	}
 
 	/* create BLAS */
@@ -385,7 +428,6 @@ private:
 	}
 
 	void createBLAS(int cellIdx, VkQueue& queue) {
-		vector<uint32_t> maxPrimitiveCounts;
 		VkAccelerationStructureGeometryKHR geometry{};
 		VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo;
 		VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo;
@@ -409,7 +451,6 @@ private:
 		geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
 		geometry.geometry.triangles.indexData = indexBufferDeviceAddress;
 		geometry.geometry.triangles.transformData = transformBufferDeviceAddress;
-		maxPrimitiveCounts.push_back(d_splittedIndices[cellIdx].count / 3);
 
 		buildRangeInfo.firstVertex = 0;
 		buildRangeInfo.primitiveOffset = 0;
@@ -579,6 +620,7 @@ public:
 	vector<Attribute> d_splittedVertices;
 	vector<Attribute> d_splittedIndices;
 	vector<Attribute> d_splittedPrimitiveIds;
+	vks::Buffer d_splittedPrimitiveIdsDeviceAddress;
 	vector<AccelerationStructure> splittedBLAS;
 	AccelerationStructure splittedTLAS;
 
@@ -614,6 +656,7 @@ public:
 		}
 
 		copyToDevice(queue);
+		createSplittedPrimitiveIdsBuffer(queue);
 	}
 
 	void createAS(VkQueue& queue) {

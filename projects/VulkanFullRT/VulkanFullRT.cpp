@@ -883,6 +883,9 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * swapChain.imageCount),
+#if SPLIT_BLAS
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount)
+#endif 
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // gaussianEnclosing pipeline + ray tracing pipeline
 
@@ -920,6 +923,10 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
 			// Binding 6: Storage buffer - Particle Visibility
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 6),
+	#if SPLIT_BLAS
+			// Binding 7: Storage buffer - primitive Id
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 7),
+	#endif
 #endif
 		};
 
@@ -935,7 +942,11 @@ public:
 			// WriteDescriptorSet for TLAS (binding0)
 			VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo = vks::initializers::writeDescriptorSetAccelerationStructureKHR();
 			descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
+#if SPLIT_BLAS
+			descriptorAccelerationStructureInfo.pAccelerationStructures = &splitBLAS.splittedTLAS.handle;
+#else
 			descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS3DGRT.handle;
+#endif
 
 			VkWriteDescriptorSet accelerationStructureWrite{};
 			accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -960,6 +971,9 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &particleDensities.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &particleSphCoefficients.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &particleVisibility.descriptor),
+#if SPLIT_BLAS
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &splitBLAS.d_splittedPrimitiveIdsDeviceAddress.descriptor),
+#endif
 			};
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
@@ -1275,10 +1289,7 @@ public:
 
 		deviceCreatepNextChain = &physicalDeviceDescriptorIndexingFeatures;
 
-		// Original Features using VkPhysicalDeviceFeature structure.
-#if BUFFER_REFERENCE
 		enabledFeatures.shaderInt64 = VK_TRUE;	// Buffer device address requires the 64-bit integer feature to be enabled
-#endif
 		enabledFeatures.samplerAnisotropy = VK_TRUE;
 	}
 
