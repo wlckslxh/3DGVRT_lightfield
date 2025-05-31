@@ -58,6 +58,17 @@ private:
 		uint64_t deviceAddress = 0;
 		VkDeviceMemory memory;
 		VkBuffer buffer;
+
+		void destroy(VkDevice device) {
+			if (buffer)
+			{
+				vkDestroyBuffer(device, buffer, nullptr);
+			}
+			if (memory)
+			{
+				vkFreeMemory(device, memory, nullptr);
+			}
+		}
 	};
 
 	struct ScratchBuffer
@@ -662,5 +673,23 @@ public:
 	void createAS(VkQueue& queue) {
 		createBLASes(queue);
 		createTLAS(queue);
+	}
+
+	~SplitBLAS() {
+		for (int i = 0; i < d_splittedVertices.size(); i++) {
+			d_splittedVertices[i].buffer.destroy();
+		}
+		for (int i = 0; i < d_splittedIndices.size(); i++) {
+			d_splittedIndices[i].buffer.destroy();
+		}
+		for (int i = 0; i < d_splittedPrimitiveIds.size(); i++) {
+			d_splittedPrimitiveIds[i].buffer.destroy();
+		}
+		d_splittedPrimitiveIdsDeviceAddress.destroy();
+		for (int i = 0; i < splittedBLAS.size(); i++) {
+			splittedBLAS[i].destroy(vulkanDevice->logicalDevice);
+		}
+		splittedTLAS.destroy(vulkanDevice->logicalDevice);
+		tMatBuffer.destroy();
 	}
 };
