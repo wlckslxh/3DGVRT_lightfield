@@ -150,7 +150,6 @@ void main()
 #if BUFFER_REFERENCE
 					uboStatic.densityBufferDeviceAddress,
 					uboStatic.sphCoefficientBufferDeviceAddress,
-					uboStatic.visibilityBufferDeviceAddress,
 #endif
 					uboStatic.hitMinGaussianResponse,
 					ALPHA_MIN_THRESHOLD,

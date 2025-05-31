@@ -22,7 +22,7 @@
 
 layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 
-layout(binding = 7, set = 0) buffer PrimitiveIdsBuffers {
+layout(binding = 6, set = 0) buffer PrimitiveIdsBuffers {
 	uint64_t ids[];
 }primitiveIds;
 
