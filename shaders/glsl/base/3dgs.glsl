@@ -7,6 +7,8 @@
 
 #define NUM_OF_GAUSSIANS 1024 // This macro should be managed with Define.h
 
+#define SPLIT_BLAS 1 // This macro should be managed with Define.h
+
 /* 3dgrt parameters */
 #define EPS_T 1e-9
 #define SPECULAR_DIMENSION 45
@@ -71,5 +73,4 @@ struct RayPayload {
 #if BUFFER_REFERENCE
 layout(buffer_reference, scalar) buffer Densities { ParticleDensity d[]; };
 layout(buffer_reference, scalar) buffer SphCoefficients { float sc[]; };
-layout(buffer_reference, scalar) buffer Visibility { float v[]; };
 #endif

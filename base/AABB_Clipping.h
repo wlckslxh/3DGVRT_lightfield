@@ -113,56 +113,40 @@ namespace AABB_Triangle_Clipping {
 //return true;
 //	}
 
-	void _clip_polygon_against_plane(std::vector<vkglTF::Vertex>& pg_from, std::vector<vkglTF::Vertex>& pg_to, float boundary, _axis axis, _side side) {
+	void _clip_polygon_against_plane(std::vector<glm::vec3>& pg_from, std::vector<glm::vec3>& pg_to, float boundary, _axis axis, _side side) {
 		bool inside_prev, inside_cur; // are the prev and cur vertices inside the clipping plane, respectively?
 		const int pg_from_size = pg_from.size();
 		
 		pg_to.clear();
 		if (pg_from_size == 0) return;
 		// for the first vkglTF::Vertex
-		inside_prev = _inside(pg_from[0].pos[axis], boundary, side);
+		inside_prev = _inside(pg_from[0][axis], boundary, side);
 		//if (inside_prev)
 		//	pg_to.push_back(pg_from[0]);
 
 		for (int index_prev = 0; index_prev < pg_from_size; index_prev++) {
 			const int index_cur = (index_prev + 1) % pg_from_size;
-			const bool inside_cur = _inside(pg_from[index_cur].pos[axis], boundary, side);
+			const bool inside_cur = _inside(pg_from[index_cur][axis], boundary, side);
 
 			if (inside_prev) {
 				if (inside_cur) { // prev in & cur in
 					pg_to.push_back(pg_from[index_cur]);
 				}
 				else { // prev in & cur out
-					float t = fabsf((pg_from[index_prev].pos[axis] - boundary) / (pg_from[index_prev].pos[axis] - pg_from[index_cur].pos[axis]));
+					float t = fabsf((pg_from[index_prev][axis] - boundary) / (pg_from[index_prev][axis] - pg_from[index_cur][axis]));
 
-					vkglTF::Vertex vertex;
-					vertex.pos = t * pg_from[index_cur].pos + (1.0f - t) * pg_from[index_prev].pos;
-					// normalize?
-					vertex.normal = glm::normalize(t * pg_from[index_cur].normal + (1.0f - t) * pg_from[index_prev].normal);
-					vertex.color = t * pg_from[index_cur].color + (1.0f - t) * pg_from[index_prev].color;
-					vertex.uv = t * pg_from[index_cur].uv + (1.0f - t) * pg_from[index_prev].uv;
-					vertex.joint0 = t * pg_from[index_cur].joint0 + (1.0f - t) * pg_from[index_prev].joint0;
-					vertex.weight0 = t * pg_from[index_cur].weight0 + (1.0f - t) * pg_from[index_prev].weight0;
-					vertex.tangent = t * pg_from[index_cur].tangent + (1.0f - t) * pg_from[index_prev].tangent;
-					vertex.objectID.data = pg_from[index_cur].objectID.data;
+					glm::vec3 vertex;
+					vertex = t * pg_from[index_cur] + (1.0f - t) * pg_from[index_prev];
 
 					pg_to.push_back(vertex);
 				}
 			}
 			else {
 				if (inside_cur) { // prev out & cur in
-					float t = fabsf((pg_from[index_prev].pos[axis] - boundary) / (pg_from[index_prev].pos[axis] - pg_from[index_cur].pos[axis]));
+					float t = fabsf((pg_from[index_prev][axis] - boundary) / (pg_from[index_prev][axis] - pg_from[index_cur][axis]));
 
-					vkglTF::Vertex vertex;
-					vertex.pos = t * pg_from[index_cur].pos + (1.0f - t) * pg_from[index_prev].pos;
-					// normalize?
-					vertex.normal = glm::normalize(t * pg_from[index_cur].normal + (1.0f - t) * pg_from[index_prev].normal);
-					vertex.color = t * pg_from[index_cur].color + (1.0f - t) * pg_from[index_prev].color;
-					vertex.uv = t * pg_from[index_cur].uv + (1.0f - t) * pg_from[index_prev].uv;
-					vertex.joint0 = t * pg_from[index_cur].joint0 + (1.0f - t) * pg_from[index_prev].joint0;
-					vertex.weight0 = t * pg_from[index_cur].weight0 + (1.0f - t) * pg_from[index_prev].weight0;
-					vertex.tangent = t * pg_from[index_cur].tangent + (1.0f - t) * pg_from[index_prev].tangent;
-					vertex.objectID.data = pg_from[index_cur].objectID.data;
+					glm::vec3 vertex;
+					vertex = t * pg_from[index_cur] + (1.0f - t) * pg_from[index_prev];
 
 					pg_to.push_back(vertex);
 					
@@ -177,7 +161,7 @@ namespace AABB_Triangle_Clipping {
 		}
 	}
 
-	void _clip_triangle_against_AABB(vkglTF::Vertex** triangle, _AABB& AABB, std::vector<vkglTF::Vertex>& polygon) {
+	void _clip_triangle_against_AABB(glm::vec3* triangle, _AABB& AABB, std::vector<glm::vec3>& polygon) {
 		// clip triangle against AABB and return the resulting polygon.
 		// To call this function
 		// 1. set up triangle[0], triangle[1], triangle[2] so that their coord stores p[0], p[1], and p[2], and
@@ -186,13 +170,13 @@ namespace AABB_Triangle_Clipping {
 		//  Then, calling this function returns a convex polygon.
 		//  From this (non-null) polygon, generate a list of triangles using delauneay trianglulation (for a convex polygon).
 
-		std::vector<vkglTF::Vertex> pg[2]; // flip its function during iterations
+		std::vector<glm::vec3> pg[2]; // flip its function during iterations
 		int pg_from = 0;
 
 		// initially copy the input triangle to pg_from
 		pg[pg_from].clear();
 		for (int i = 0; i < 3; i++)
-			pg[pg_from].push_back(*triangle[i]);
+			pg[pg_from].push_back(triangle[i]);
 
 		_clip_polygon_against_plane(pg[pg_from], pg[1 - pg_from], AABB.xmin, _X, _MIN);
 		pg_from = 1 - pg_from;
@@ -213,7 +197,8 @@ namespace AABB_Triangle_Clipping {
 		for (int i = 0; i < pg[1 - pg_from].size(); i++)
 			polygon.push_back(pg[1 - pg_from][i]);
 	}
-	void _clip_triangle_against_AABB_np(vkglTF::Vertex triangle[3], _AABB& AABB, std::vector<vkglTF::Vertex>& polygon) {
+
+	void _clip_triangle_against_AABB_np(glm::vec3 triangle[3], _AABB& AABB, std::vector<glm::vec3>& polygon) {
 		// clip triangle against AABB and return the resulting polygon.
 		// To call this function
 		// 1. set up triangle[0], triangle[1], triangle[2] so that their coord stores p[0], p[1], and p[2], and
@@ -222,7 +207,7 @@ namespace AABB_Triangle_Clipping {
 		//  Then, calling this function returns a convex polygon.
 		//  From this (non-null) polygon, generate a list of triangles using delauneay trianglulation (for a convex polygon).
 
-		std::vector<vkglTF::Vertex> pg[2]; // flip its function during iterations
+		std::vector<glm::vec3> pg[2]; // flip its function during iterations
 		int pg_from = 0;
 
 		// initially copy the input triangle to pg_from
