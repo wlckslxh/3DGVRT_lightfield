@@ -56,5 +56,8 @@ void main(){
 		if(rayPayload.hits[MAX_HIT_PER_TRACE - 1].dist > gl_HitTEXT){
 			ignoreIntersectionEXT;
 		}
+		if(rayPayload.hits[MAX_HIT_PER_TRACE - 1].particleId != INVALID_PARTICLE_ID){
+			terminateRayEXT;
+		}
 	}
 }

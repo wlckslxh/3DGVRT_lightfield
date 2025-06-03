@@ -125,7 +125,7 @@ void main()
 #ifdef ENABLE_NORMALS
 	vec3 rayNormal = vec3(0.0f);
 #endif
-#ifdef ENABLE_HIT_COUNTS
+#if ENABLE_HIT_COUNTS
 	uint rayHitsCount = 0;
 #endif
 
@@ -172,7 +172,7 @@ void main()
 
 				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
 
-#ifdef ENABLE_HIT_COUNTS
+#if ENABLE_HIT_COUNTS
 				rayHitsCount += acceptedHit ? 1 : 0;
 #endif
 			}
@@ -180,6 +180,7 @@ void main()
 	}
 
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
+//	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayHitDistance / 10.0f, rayHitDistance / 10.0f, rayHitDistance / 10.0f, 1.0f));
 
 	/*** playground style ***/
 //	vec4 volumetricRadDns = traceGaussians(rayOrigin, rayDirection, EPS_T, ray_t_max);
