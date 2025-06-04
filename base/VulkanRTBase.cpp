@@ -789,26 +789,26 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 		setCamera(2);
 	}
 
-#if QUATERNION_CAMERA
-	/* flip axis buttons */
-	ImGui::Text("Flip Axis");
-	ImGui::SameLine();
-	if (ImGui::Button(" x ")) {
-		quaternionCamera.flipX();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button(" y ")) {
-		quaternionCamera.flipY();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button(" z ")) {
-		quaternionCamera.flipZ();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button(" w ")) {
-		quaternionCamera.flipW();
-	}
-#endif
+//#if QUATERNION_CAMERA
+//	/* flip axis buttons */
+//	ImGui::Text("Flip Axis");
+//	ImGui::SameLine();
+//	if (ImGui::Button(" x ")) {
+//		quaternionCamera.flipX();
+//	}
+//	ImGui::SameLine();
+//	if (ImGui::Button(" y ")) {
+//		quaternionCamera.flipY();
+//	}
+//	ImGui::SameLine();
+//	if (ImGui::Button(" z ")) {
+//		quaternionCamera.flipZ();
+//	}
+//	ImGui::SameLine();
+//	if (ImGui::Button(" w ")) {
+//		quaternionCamera.flipW();
+//	}
+//#endif
 
 	ImGui::Separator();
 	ImGui::Text("Light Attenuation Factor");
@@ -817,7 +817,7 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	ImGui::SliderFloat("_gamma", &pushConstants.lightAttVar.gamma, 0.001f, 1.0f);
 	ImGui::Separator();
 
-	//static const char* camNames[] = { "0","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29" };
+#if LOAD_NERF_CAMERA
 	static vector<string> camNames = quaternionCamera.getCamNames();
 	static const char* current_item = "0";
 	
@@ -842,6 +842,7 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 		ImGui::EndCombo();
 	}
 	ImGui::Separator();
+#endif
 
 	//text input for fps calculation
 	if(!fpsQuery) {
