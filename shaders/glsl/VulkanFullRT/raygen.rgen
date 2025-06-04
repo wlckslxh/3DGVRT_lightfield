@@ -129,7 +129,7 @@ void main()
 	vec3 rayNormal = vec3(0.0f);
 #endif
 #if ENABLE_HIT_COUNTS
-	uint rayHitsCount = 0;
+	uint hitCnts = 0;
 #endif
 
 	vec2 minMaxT = intersectAABB(uboStatic.aabb, rayOrigin.xyz, rayDirection.xyz);
@@ -175,7 +175,7 @@ void main()
 				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
 
 #if ENABLE_HIT_COUNTS
-				rayHitsCount += acceptedHit ? 1 : 0;
+				hitCnts += acceptedHit ? 1 : 0;
 #endif
 			}
 		}
@@ -185,7 +185,7 @@ void main()
 //	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayHitDistance / 10.0f, rayHitDistance / 10.0f, rayHitDistance / 10.0f, 1.0f));
 
 #if ENABLE_HIT_COUNTS
-	rayHitCounts.cnts[gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x] = rayHitsCount;
+	rayHitCounts.cnts[gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x] = hitCnts;
 #endif
 
 	/*** playground style ***/
