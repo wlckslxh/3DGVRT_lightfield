@@ -18,10 +18,10 @@
 #endif
 
 #define QUATERNION_CAMERA true
-#define CAM_MOVE_SPEED 15.0f
-#define CAM_ROTATION_SPEED 50.0f
+#define CAM_MOVE_SPEED 0.15f
+#define CAM_ROTATION_SPEED 0.5f
 
-#define LOAD_NERF_CAMERA true
+#define LOAD_NERF_CAMERA false
 #define NEAR_PLANE 0.1
 #define FAR_PLANE 5000
 #define FOV_Y 35

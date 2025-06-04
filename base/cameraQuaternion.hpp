@@ -45,7 +45,8 @@ public:
 
     glm::mat4 getViewMatrix() const {
         // 쿼터니언을 행렬로 변환하고, 역행렬 적용 (View matrix)
-        glm::mat4 rotMat = glm::mat4_cast(rotation);
+        glm::mat4 rotMat = glm::toMat4(glm::conjugate(rotation));
+        //glm::mat4 rotMat = glm::mat4_cast(rotation);
         glm::mat4 transMat = glm::translate(glm::mat4(1.0f), -position);
         //return viewMatrix;
         return rotMat * transMat;
@@ -95,7 +96,6 @@ public:
     }
 
     void rotate(const glm::vec3& localAxis, float angleRadians) {
-        angleRadians *= deltaTime;
         glm::vec3 worldAxis = rotation * localAxis;
         glm::quat q = glm::angleAxis(angleRadians, glm::normalize(worldAxis));
         rotation = glm::normalize(q * rotation);
@@ -103,7 +103,7 @@ public:
 
     void move(const glm::vec3& delta) {
         // 로컬 방향으로 이동하려면 쿼터니언 회전을 적용
-        position += rotation * delta * deltaTime;
+        position += rotation * delta;
     }
 
     glm::vec3 getForward() const {
