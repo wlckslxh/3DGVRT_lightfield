@@ -17,7 +17,7 @@
 #include "SimpleUtils.h"
 #include "Vulkan3DGRTModel.h"
 
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 #include "SplitBLAS.hpp"
 #endif
 
@@ -47,7 +47,7 @@ public:
 	AccelerationStructure bottomLevelAS3DGRT{};
 	AccelerationStructure topLevelAS3DGRT{};
 
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 	SplitBLAS splitBLAS;
 #endif
 
@@ -881,9 +881,9 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * swapChain.imageCount),
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount)
-#endif 
+#endif
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // gaussianEnclosing pipeline + ray tracing pipeline
 
@@ -917,7 +917,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
 			// Binding 5: Storage buffer - Particle Sph Coefficients
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
-	#if SPLIT_BLAS
+	#if SPLIT_BLAS && !RAY_QUERY
 			// Binding 7: Storage buffer - primitive Id
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 6),
 	#endif
@@ -936,7 +936,7 @@ public:
 			// WriteDescriptorSet for TLAS (binding0)
 			VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo = vks::initializers::writeDescriptorSetAccelerationStructureKHR();
 			descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 			descriptorAccelerationStructureInfo.pAccelerationStructures = &splitBLAS.splittedTLAS.handle;
 #else
 			descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS3DGRT.handle;
@@ -964,7 +964,7 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3, &frame.uniformBufferStatic.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &particleDensities.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &particleSphCoefficients.descriptor),
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &splitBLAS.d_splittedPrimitiveIdsDeviceAddress.descriptor),
 #endif
 			};
@@ -1407,7 +1407,7 @@ public:
 		createTopLevelAccelerationStructure();
 #endif
 
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 		splitBLAS.init(vulkanDevice);
 		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
 		splitBLAS.createAS(graphicsQueue);

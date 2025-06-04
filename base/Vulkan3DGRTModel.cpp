@@ -164,7 +164,7 @@ namespace vk3DGRT {
 	void Model::allocateAttributeBuffers(vks::VulkanDevice* vulkanDevice, VkQueue queue)
 	{
 		VkFlags transferSrcBit = VK_FLAGS_NONE;
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 		transferSrcBit = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 #endif
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
