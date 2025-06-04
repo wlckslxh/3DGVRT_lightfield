@@ -1408,9 +1408,15 @@ public:
 #endif
 
 #if SPLIT_BLAS && !RAY_QUERY
+		std::cout << "*** Start split BLAS ***\n";
+		auto startTime = std::chrono::high_resolution_clock::now();
 		splitBLAS.init(vulkanDevice);
 		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
 		splitBLAS.createAS(graphicsQueue);
+		std::cout << "*** End split BLAS ***\n";
+		auto      endTime = std::chrono::high_resolution_clock::now();
+		long long loadTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+		std::cout << "Time spent for Split BLAS " << loadTime << "ms" << std::endl;
 #else
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
