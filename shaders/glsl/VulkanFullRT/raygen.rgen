@@ -74,6 +74,12 @@ layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
 } particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. uboStatic.particleRadiance
 #endif
 
+#if ENABLE_HIT_COUNTS
+layout(std430, binding = 7, set = 0) buffer RayHitCounts {
+	uint cnts[];
+} rayHitCounts;
+#endif
+
 #include "../base/gaussianfunctions.glsl"
 
 /***** 3DGS Functions *****/
@@ -177,6 +183,10 @@ void main()
 
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
 //	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayHitDistance / 10.0f, rayHitDistance / 10.0f, rayHitDistance / 10.0f, 1.0f));
+
+#if ENABLE_HIT_COUNTS
+	rayHitCounts.cnts[gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x] = rayHitsCount;
+#endif
 
 	/*** playground style ***/
 //	vec4 volumetricRadDns = traceGaussians(rayOrigin, rayDirection, EPS_T, ray_t_max);
