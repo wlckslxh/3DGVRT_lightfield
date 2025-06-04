@@ -17,6 +17,17 @@
 #define MEASURE_FRAME 2000
 #endif
 
+/* cameras */
+#define QUATERNION_CAMERA true
+#define LOAD_NERF_CAMERA false
+#define FOV_Y 39
+#define NEAR_PLANE 0.1
+#define FAR_PLANE 5000
+// quaternion camera
+#define CAM_MOVE_SPEED 0.15f
+#define CAM_ROTATION_SPEED 0.5f
+
+
 #define ASSET 0
 #define LOAD_GLTF 0
 

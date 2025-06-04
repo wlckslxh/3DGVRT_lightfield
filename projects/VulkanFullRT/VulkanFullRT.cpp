@@ -141,7 +141,11 @@ public:
 	VulkanFullRT() : VulkanRTCommon()
 	{
 		title = "Abura Soba - Vulkan Full Ray Tracing";
+#if LOAD_NERF_CAMERA
+		initCamera(DatasetType::nerf, getAssetPath() + "3DGRTModels/lego/transforms_val.json");
+#else
 		initCamera();
+#endif
 
 #if RAY_QUERY
 		rayQueryOnly = true;
@@ -1208,8 +1212,13 @@ public:
 
 	void updateUniformBuffer()
 	{
+#if QUATERNION_CAMERA
+		uniformDataDynamic.viewInverse = glm::inverse(quaternionCamera.getViewMatrix());
+		uniformDataDynamic.projInverse = glm::inverse(quaternionCamera.perspective);
+#else
 		uniformDataDynamic.viewInverse = glm::inverse(camera.matrices.view);
 		uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
+#endif
 
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		memcpy(currentFrame.uniformBuffer.mapped, &uniformDataDynamic, sizeof(uniformDataDynamic));

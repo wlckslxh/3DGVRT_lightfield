@@ -78,6 +78,8 @@
 #include "SceneObjectManager.h"
 #include "Define.h"
 
+#include "cameraQuaternion.hpp"
+
 struct BaseFrameObject
 {
 	VkCommandBuffer commandBuffer{ VK_NULL_HANDLE };
@@ -200,8 +202,10 @@ public:
 	bool prepared = false;
 	bool resized = false;
 	bool viewUpdated = false;
-	uint32_t width = 2560;
-	uint32_t height = 1440;
+	//uint32_t width = 2560;
+	//uint32_t height = 1440;
+	uint32_t width = 1920;
+	uint32_t height = 1080;
 	float initialDistance;
 	/*
 	* List of resolutions
@@ -289,6 +293,7 @@ public:
 	bool paused = false;
 
 	Camera camera;
+	QuaternionCamera quaternionCamera;
 
 	std::string title = "Vulkan Example";
 	std::string name = "vulkanExample";
@@ -513,7 +518,7 @@ public:
 	void loadCubemap(std::string filename, VkFormat format);
 
 	// camera setting
-	void initCamera();
+	void initCamera(DatasetType type = DatasetType::none, std::string path = "");
 	void setCamera(uint32_t camIdx);
 };
 
