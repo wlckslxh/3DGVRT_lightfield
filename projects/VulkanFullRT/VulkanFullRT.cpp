@@ -95,6 +95,9 @@ public:
 
 	struct FrameObject : public BaseFrameObject {
 		VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
+#if ENABLE_HIT_COUNTS && !RAY_QUERY
+		vks::Buffer hitCountsbuffer;
+#endif
 	};
 
 	std::vector<FrameObject> frameObjects;
@@ -882,7 +885,10 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * swapChain.imageCount),
 #if SPLIT_BLAS && !RAY_QUERY
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount),
+#endif 
+#if ENABLE_HIT_COUNTS && !RAY_QUERY
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount),
 #endif
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // gaussianEnclosing pipeline + ray tracing pipeline
@@ -917,9 +923,13 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
 			// Binding 5: Storage buffer - Particle Sph Coefficients
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
-	#if SPLIT_BLAS && !RAY_QUERY
-			// Binding 7: Storage buffer - primitive Id
+	#if SPLIT_BLAS
+			// Binding 6: Storage buffer - primitive Id
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 6),
+	#endif
+	#if ENABLE_HIT_COUNTS
+			// Binding 7: Storage buffer - Ray Hit Count for debugging
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 7),
 	#endif
 #endif
 		};
@@ -966,6 +976,9 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &particleSphCoefficients.descriptor),
 #if SPLIT_BLAS && !RAY_QUERY
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &splitBLAS.d_splittedPrimitiveIdsDeviceAddress.descriptor),
+#endif
+#if ENABLE_HIT_COUNTS && !RAY_QUERY
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &frame.hitCountsbuffer.descriptor),
 #endif
 			};
 
@@ -1381,6 +1394,11 @@ public:
 			VkMemoryPropertyFlags memoryFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			vulkanDevice->createAndCopyToDeviceBuffer(&uniformDataStatic, frame.uniformBufferStatic, sizeof(vks::utils::UniformDataStatic), graphicsQueue, usageFlags, memoryFlags);
 
+			// For debugging, write hit counts
+#if ENABLE_HIT_COUNTS && !RAY_QUERY
+			VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &frame.hitCountsbuffer, sizeof(unsigned int) * width * height, nullptr));
+#endif
+
 			// Time Stamp for measuring performance.
 			setupTimeStampQueries(frame, timeStampCountPerFrame);
 		}
@@ -1442,7 +1460,34 @@ public:
 
 		buildCommandBuffer(currentFrame);
 		VulkanRTBase::submitFrame(currentFrame);
+
+#if ENABLE_HIT_COUNTS && !RAY_QUERY
+		vkQueueWaitIdle(graphicsQueue);
+		printRayHitCounts(currentFrame);
+#endif
 	}
+
+#if ENABLE_HIT_COUNTS && !RAY_QUERY
+	// Print the ray hit count of each pixel of last frame to the txt file.
+	void printRayHitCounts(FrameObject currentFrame) {
+		uint32_t* uintData = static_cast<uint32_t*>(currentFrame.hitCountsbuffer.mapped);
+
+		FILE* fp = fopen("../results/texts/rayHitCountsOutput.txt", "w");
+		if (fp) {
+			for (size_t i = 0; i < width * height; ++i) {
+				fprintf(fp, "%u\n", uintData[i]);
+				//fprintf(fp, "%u\n", 1);
+				for (size_t i = 0; i < height; ++i) {
+					for (size_t j = 0; j < width; ++j) {
+						fprintf(fp, "%u ", uintData[i * height + j]);
+					}
+					fprintf(fp, "\n");
+				}
+				fclose(fp);
+			}
+		}
+	}
+#endif
 
 	virtual void render()
 	{

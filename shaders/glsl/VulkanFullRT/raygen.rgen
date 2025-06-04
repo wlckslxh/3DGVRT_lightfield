@@ -18,6 +18,7 @@
 #include "../base/light.glsl"
 #include "../base/3dgs.glsl"
 #include "../base/utils.glsl"
+#include "../base/define.glsl"
 
 /*** playground style ***/
 //struct RayData{
@@ -73,6 +74,12 @@ layout(std430, binding = 5, set = 0) buffer ParticleSphCoefficients {
 } particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. uboStatic.particleRadiance
 #endif
 
+#if ENABLE_HIT_COUNTS
+layout(std430, binding = 7, set = 0) buffer RayHitCounts {
+	uint cnts[];
+} rayHitCounts;
+#endif
+
 #include "../base/gaussianfunctions.glsl"
 
 /***** 3DGS Functions *****/
@@ -121,8 +128,8 @@ void main()
 #ifdef ENABLE_NORMALS
 	vec3 rayNormal = vec3(0.0f);
 #endif
-#ifdef ENABLE_HIT_COUNTS
-	uint rayHitsCount = 0;
+#if ENABLE_HIT_COUNTS
+	uint hitCnts = 0;
 #endif
 
 	vec2 minMaxT = intersectAABB(uboStatic.aabb, rayOrigin.xyz, rayDirection.xyz);
@@ -130,8 +137,11 @@ void main()
 
 	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
 
-	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance))
-	{
+	const uint iterations = ITERATIONS;
+	uint iter = 0;
+	while((iter < iterations) && (rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance)){
+		iter++;
+
 		// Gather k hits
 		trace(rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
 		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
@@ -164,14 +174,19 @@ void main()
 
 				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
 
-#ifdef ENABLE_HIT_COUNTS
-				rayHitsCount += acceptedHit ? 1 : 0;
+#if ENABLE_HIT_COUNTS
+				hitCnts += acceptedHit ? 1 : 0;
 #endif
 			}
 		}
 	}
 
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
+//	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayHitDistance / 10.0f, rayHitDistance / 10.0f, rayHitDistance / 10.0f, 1.0f));
+
+#if ENABLE_HIT_COUNTS
+	rayHitCounts.cnts[gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x] = hitCnts;
+#endif
 
 	/*** playground style ***/
 //	vec4 volumetricRadDns = traceGaussians(rayOrigin, rayDirection, EPS_T, ray_t_max);
