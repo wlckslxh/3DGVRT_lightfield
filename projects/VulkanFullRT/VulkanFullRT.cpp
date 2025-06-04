@@ -17,7 +17,7 @@
 #include "SimpleUtils.h"
 #include "Vulkan3DGRTModel.h"
 
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 #include "SplitBLAS.hpp"
 #endif
 
@@ -47,7 +47,7 @@ public:
 	AccelerationStructure bottomLevelAS3DGRT{};
 	AccelerationStructure topLevelAS3DGRT{};
 
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 	SplitBLAS splitBLAS;
 #endif
 
@@ -144,7 +144,11 @@ public:
 	VulkanFullRT() : VulkanRTCommon()
 	{
 		title = "Abura Soba - Vulkan Full Ray Tracing";
+#if LOAD_NERF_CAMERA
+		initCamera(DatasetType::nerf, getAssetPath() + ASSET_PATH + CAMERA_FILE);
+#else
 		initCamera();
+#endif
 
 #if RAY_QUERY
 		rayQueryOnly = true;
@@ -880,7 +884,7 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 * swapChain.imageCount),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * swapChain.imageCount),
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount),
 #endif 
 #if ENABLE_HIT_COUNTS
@@ -919,7 +923,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
 			// Binding 5: Storage buffer - Particle Sph Coefficients
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
-	#if SPLIT_BLAS
+	#if SPLIT_BLAS && !RAY_QUERY
 			// Binding 6: Storage buffer - primitive Id
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 6),
 	#endif
@@ -942,7 +946,7 @@ public:
 			// WriteDescriptorSet for TLAS (binding0)
 			VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo = vks::initializers::writeDescriptorSetAccelerationStructureKHR();
 			descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 			descriptorAccelerationStructureInfo.pAccelerationStructures = &splitBLAS.splittedTLAS.handle;
 #else
 			descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS3DGRT.handle;
@@ -970,7 +974,7 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3, &frame.uniformBufferStatic.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &particleDensities.descriptor),
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &particleSphCoefficients.descriptor),
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6, &splitBLAS.d_splittedPrimitiveIdsDeviceAddress.descriptor),
 #endif
 #if ENABLE_HIT_COUNTS
@@ -1221,8 +1225,13 @@ public:
 
 	void updateUniformBuffer()
 	{
+#if QUATERNION_CAMERA
+		uniformDataDynamic.viewInverse = glm::inverse(quaternionCamera.getViewMatrix());
+		uniformDataDynamic.projInverse = glm::inverse(quaternionCamera.perspective);
+#else
 		uniformDataDynamic.viewInverse = glm::inverse(camera.matrices.view);
 		uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
+#endif
 
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
 		memcpy(currentFrame.uniformBuffer.mapped, &uniformDataDynamic, sizeof(uniformDataDynamic));
@@ -1317,7 +1326,7 @@ public:
 #endif
 
 		//gModel.load3DGRTObject(getAssetPath() + "3DGRTModels/lego/ckpt_last.pt", vulkanDevice);
-		gModel.load3DGRTModel(getAssetPath() + ASSET_PATH + "export_last.ply", vulkanDevice);
+		gModel.load3DGRTModel(getAssetPath() + ASSET_PATH + PLY_FILE, vulkanDevice);
 	}
 
 	bool initVulkan() {
@@ -1416,10 +1425,16 @@ public:
 		createTopLevelAccelerationStructure();
 #endif
 
-#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
+		std::cout << "*** Start split BLAS ***\n";
+		auto startTime = std::chrono::high_resolution_clock::now();
 		splitBLAS.init(vulkanDevice);
 		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
 		splitBLAS.createAS(graphicsQueue);
+		std::cout << "*** End split BLAS ***\n";
+		auto      endTime = std::chrono::high_resolution_clock::now();
+		long long loadTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+		std::cout << "Time spent for Split BLAS " << loadTime << "ms" << std::endl;
 #else
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();

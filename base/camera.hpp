@@ -1,10 +1,12 @@
 /*
-* Basic camera class
-*
-* Copyright (C) 2016-2023 by Sascha Willems - www.saschawillems.de
-*
-* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
-*/
+ * Sogang Univ, Graphics Lab, 2024
+ *
+ * Abura Soba, 2025
+ *
+ * Camera(Euler Angle)
+ *
+ */
+#pragma once
 
 #define USE_CORRECT_VULKAN_PERSPECTIVE_IHM
 
@@ -15,11 +17,16 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "Define.h"
 
+
+#include "LoadCamera.hpp"
+
 class Camera
 {
 private:
 	float fov;
 	float znear, zfar;
+
+	CameraLoader cameraLoader;
 
 	void updateViewMatrix()
 	{
@@ -48,14 +55,15 @@ private:
 		if (matrices.view != currentMatrix) {
 			updated = true;
 		}
-
 	};
+
 public:
 	enum CameraType { lookat, firstperson, SG_camera, cameraSize};
 	CameraType type = CameraType::lookat;
 	glm::vec3 rotation = glm::vec3();
 	glm::vec3 position = glm::vec3();
 	glm::vec4 viewPos = glm::vec4();
+	DatasetType dataType;
 
 	float rotationSpeed = 1.0f;
 	float movementSpeed = 15.0f;
@@ -78,6 +86,37 @@ public:
 		bool forward = false;
 		bool backward = false;
 	} keys;
+
+	const vector<string> getCamNames() {
+		return cameraLoader.camNames;
+	}
+
+	void setNearFar(float _znear, float _zfar) {
+		znear = _znear;
+		zfar = _zfar;
+	}
+
+	void setNerfCamera(uint32_t idx) {
+		CameraFrame* frame = &cameraLoader.nerfCameras.frames[idx];
+		matrices.view = frame->transformMatrix;
+		//matrices.perspective = cameraLoader.nerfCameras.projectionMatrix;
+	}
+
+	void setDatasetCamera(DatasetType type, uint32_t idx, float aspect) {
+		if (type == nerf) {
+			setPerspective(cameraLoader.fovy, aspect, znear, zfar);
+			setPerspective(FOV_Y, aspect, znear, zfar);
+			setNerfCamera(idx);
+		}
+	}
+
+	void loadDatasetCamera(DatasetType type, string path, uint32_t width, uint32_t height) {
+		if (type == nerf) {
+			cameraLoader.loadNerfCameraData(path, width, height, znear, zfar);
+			//cameraLoader.PrintCameraData(cameraLoader.nerfCameras);
+		}
+		dataType = type;
+	}
 
 	void rotateAxis(float rad_angle, glm::vec3* u, glm::vec3* v, glm::vec3* n) {  // rotate u, v->n
 		float sina, cosa;
@@ -254,7 +293,9 @@ public:
 				}
 			}
 		}
+#if !LOAD_NERF_CAMERA
 		updateViewMatrix();
+#endif
 	};
 
 	// Update camera passing separate axis data (gamepad)

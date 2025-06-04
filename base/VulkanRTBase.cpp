@@ -344,6 +344,9 @@ void VulkanRTBase::nextFrame(std::vector<BaseFrameObject*>& frameObjects)
 	auto tEnd = std::chrono::high_resolution_clock::now();
 	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
 
+#if QUATERNION_CAMERA
+	quaternionCamera.setDeltaTime(frameTimer);
+#endif
 	frameTimer = (float)tDiff / 1000.0f;
 	camera.update(frameTimer);
 	if (camera.moving())
@@ -785,12 +788,61 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	if (ImGui::Button("2")) {
 		setCamera(2);
 	}
+
+//#if QUATERNION_CAMERA
+//	/* flip axis buttons */
+//	ImGui::Text("Flip Axis");
+//	ImGui::SameLine();
+//	if (ImGui::Button(" x ")) {
+//		quaternionCamera.flipX();
+//	}
+//	ImGui::SameLine();
+//	if (ImGui::Button(" y ")) {
+//		quaternionCamera.flipY();
+//	}
+//	ImGui::SameLine();
+//	if (ImGui::Button(" z ")) {
+//		quaternionCamera.flipZ();
+//	}
+//	ImGui::SameLine();
+//	if (ImGui::Button(" w ")) {
+//		quaternionCamera.flipW();
+//	}
+//#endif
+
 	ImGui::Separator();
 	ImGui::Text("Light Attenuation Factor");
 	ImGui::SliderFloat("_alpha", &pushConstants.lightAttVar.alpha, 0.001f, 1.0f);
 	ImGui::SliderFloat("_beta", &pushConstants.lightAttVar.beta, 0.001f, 1.0f);
 	ImGui::SliderFloat("_gamma", &pushConstants.lightAttVar.gamma, 0.001f, 1.0f);
 	ImGui::Separator();
+
+#if LOAD_NERF_CAMERA
+	static vector<string> camNames = quaternionCamera.getCamNames();
+	static const char* current_item = "0";
+	
+	ImGui::Text("loaded cameras");
+	if (ImGui::BeginCombo("##combo", current_item))
+	{
+		for (int n = 0; n < camNames.size(); n++)
+		{
+			bool is_selected = (current_item == camNames[n].c_str());
+			if (ImGui::Selectable(camNames[n].c_str(), is_selected)) {
+				current_item = camNames[n].c_str();
+				if(!is_selected){
+					//ImGui::SetItemDefaultFocus();
+#if QUATERNION_CAMERA
+					quaternionCamera.setDatasetCamera(quaternionCamera.dataType, n, (float)width / height);
+#else
+					camera.setDatasetCamera(camera.dataType, n, (float)width / height);
+#endif
+				}
+			}
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::Separator();
+#endif
 
 	//text input for fps calculation
 	if(!fpsQuery) {
@@ -1623,6 +1675,7 @@ const char* cameraTypeToString(Camera::CameraType type) {
 
 void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	float camSpeed = CAM_MOVE_SPEED;
 	switch (uMsg)
 	{
 	case WM_CLOSE:
@@ -1652,10 +1705,25 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			break;
 		}
 
-		if (camera.type == Camera::firstperson || camera.type == Camera::SG_camera)
+		
+		//if (camera.type == Camera::firstperson || camera.type == Camera::SG_camera)
 		{
 			switch (wParam)
 			{
+#if QUATERNION_CAMERA
+			case KEY_W:
+				quaternionCamera.move(glm::vec3(0, 0, -camSpeed));
+				break;
+			case KEY_S:
+				quaternionCamera.move(glm::vec3(0, 0, camSpeed));
+				break;
+			case KEY_A:
+				quaternionCamera.move(glm::vec3(-camSpeed, 0, 0));
+				break;
+			case KEY_D:
+				quaternionCamera.move(glm::vec3(camSpeed, 0, 0));
+				break;
+#else
 			case KEY_W:
 				camera.keys.forward = true;
 				break;
@@ -1668,19 +1736,52 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			case KEY_D:
 				camera.keys.right = true;
 				break;
+#endif
 			case KEY_P:
+#if QUATERNION_CAMERA
+				printf("quaternionCamera.setTranslation(glm::vec3(%f, %f, %f));\n", quaternionCamera.position.x, quaternionCamera.position.y, quaternionCamera.position.z);
+				printf("quaternionCamera.setRotation(glm::quat(%f, %f, %f, %f));\n", quaternionCamera.rotation.x, quaternionCamera.rotation.y, quaternionCamera.rotation.z, quaternionCamera.rotation.w);
+#else
 				printf("camera.setTranslation(glm::vec3(%f, %f, %f));\n", camera.position.x, camera.position.y, camera.position.z);
 				printf("camera.setRotation(glm::vec3(%f, %f, %f));\n", camera.rotation.x, camera.rotation.y, camera.rotation.z);
+#endif
 				break;
+			case KEY_R:
+				camera.setRotation(glm::vec3(-3.199999, -88.599998, 0.000000));
+				camera.setTranslation(glm::vec3(-4.211443, 1.331187, -0.232099));
+				break;			
+#if QUATERNION_CAMERA
+			case KEY_E:
+				quaternionCamera.move(glm::vec3(0, CAM_MOVE_SPEED, 0));
+				break;
+			case KEY_Q:
+				quaternionCamera.move(glm::vec3(0, -CAM_MOVE_SPEED, 0));
+				break;
+			case KEY_UP:
+				quaternionCamera.rotate(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(-CAM_ROTATION_SPEED));
+				viewUpdated = true;
+				break;
+			case KEY_DOWN:
+				quaternionCamera.rotate(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(CAM_ROTATION_SPEED));
+				//quaternionCamera.rotate(glm::vec3(glm::radians(1.0f), 0.0f, 0.0f));
+				viewUpdated = true;
+				break;
+			case KEY_LEFT:
+				quaternionCamera.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(CAM_ROTATION_SPEED));
+				//quaternionCamera.rotate(glm::radians(glm::vec3(0.0f, 1.0f, 0.0f)));
+				viewUpdated = true;
+				break;
+			case KEY_RIGHT:
+				quaternionCamera.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-CAM_ROTATION_SPEED));
+				//quaternionCamera.rotate(glm::radians(glm::vec3(0.0f, -1.0f, 0.0f)));
+				viewUpdated = true;
+				break;
+#else
 			case KEY_E:
 				camera.keys.up = true;
 				break;
 			case KEY_Q:
 				camera.keys.down = true;
-				break;
-			case KEY_R:
-				camera.setRotation(glm::vec3(-3.199999, -88.599998, 0.000000));
-				camera.setTranslation(glm::vec3(-4.211443, 1.331187, -0.232099));
 				break;
 			case KEY_UP:
 				camera.rotate(glm::vec3(1.0f, 0.0f, 0.0f));
@@ -1698,6 +1799,7 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				camera.rotate(glm::vec3(0.0f, -1.0f, 0.0f));
 				viewUpdated = true;
 				break;
+#endif
 			case KEY_HYPHEN:
 				camera.setMovementSpeed(camera.movementSpeed - 0.5f);
 				printf("MovementSpeed (W,A,S,D,E,Q) %f\n", camera.movementSpeed);
@@ -3425,6 +3527,39 @@ void VulkanRTBase::handleMouseMove(int32_t x, int32_t y)
 		return;
 	}
 
+#if QUATERNION_CAMERA
+	if (mouseState.buttons.left) {
+		quaternionCamera.rotate(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(dy * CAM_ROTATION_SPEED * 0.1f));
+		quaternionCamera.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-dx * CAM_ROTATION_SPEED * 0.1f));
+		viewUpdated = true;
+	}
+	if (mouseState.buttons.right) {
+		quaternionCamera.rotate(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians((float)dx * CAM_ROTATION_SPEED * .05f));
+		viewUpdated = true;
+	}
+	/*if (mouseState.buttons.middle) {
+		if (camera.type == Camera::SG_camera) {
+			glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
+			glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
+			glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
+
+			if (glm::radians(camera.rotation.y) != 0)
+				camera.rotateAxis(glm::radians(camera.rotation.y), &vVec, &nVec, &uVec);
+			if (glm::radians(camera.rotation.x) != 0)
+				camera.rotateAxis(glm::radians(camera.rotation.x), &uVec, &vVec, &nVec);
+			if (glm::radians(camera.rotation.z) != 0)
+				camera.rotateAxis(glm::radians(camera.rotation.z), &nVec, &uVec, &vVec);
+
+			float x = dx * camera.rotationSpeed * .5f;
+			camera.position += glm::vec3(uVec.x * x, uVec.y * x, uVec.z * x);
+			float y = dy * camera.rotationSpeed * .5f;
+			camera.position += glm::vec3(vVec.x * y, vVec.y * y, vVec.z * y);
+
+		}
+
+		viewUpdated = true;
+	}*/
+#else
 	if (mouseState.buttons.left) {
 		camera.rotate(glm::vec3(dy * camera.rotationSpeed * 0.1f, -dx * camera.rotationSpeed*0.1f, 0.0f));
 		viewUpdated = true;
@@ -3461,6 +3596,7 @@ void VulkanRTBase::handleMouseMove(int32_t x, int32_t y)
 
 		viewUpdated = true;
 	}
+#endif
 	mouseState.position = glm::vec2((float)x, (float)y);
 }
 
@@ -3693,16 +3829,34 @@ void VulkanRTBase::loadCubemap(std::string filename, VkFormat format)
 	ktxTexture_Destroy(ktxTexture);
 }
 
-void VulkanRTBase::initCamera()
+void VulkanRTBase::initCamera(DatasetType type, string path)
 {
+#if QUATERNION_CAMERA
+	if (type != DatasetType::none) {
+		quaternionCamera.setPerspective(FOV_Y, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);
+		quaternionCamera.loadDatasetCamera(type, path, width, height);
+		quaternionCamera.setDatasetCamera(type, 0, (float)width / (float)height);
+	}
+	else {
+		quaternionCamera.setPerspective(60.0f, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);
+		setCamera(0);
+	}
+#else
 	camera.type = Camera::CameraType::SG_camera;
 	camera.movementSpeed = 5.0f;
-#ifndef __ANDROID__
+	#ifndef __ANDROID__
 	camera.rotationSpeed = 0.25f;
+	#endif
+	if (type != DatasetType::none) {
+		camera.setNearFar(NEAR_PLANE, FAR_PLANE);
+		camera.loadDatasetCamera(type, path, width, height);
+		camera.setDatasetCamera(type, 0, (float)width / (float)height);
+	}
+	else {
+		camera.setPerspective(FOV_Y, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);
+		setCamera(0);
+	}
 #endif
-	camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 5000.0f);
-
-	setCamera(0);
 }
 
 void VulkanRTBase::setCamera(uint32_t camIdx)
@@ -3710,12 +3864,13 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #if ASSET == 0
 	switch (camIdx) {
 	case 0:
-		//camera.setTranslation(glm::vec3(1.509223, 9.325905, 8.422721));
-		//camera.setRotation(glm::vec3(-12.999950, 15.799769, 2.337500));
-		camera.setTranslation(glm::vec3(0.0f, -10.0f, 0.0f));
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		// camera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
-		// camera.setRotation(glm::vec3(0.000000, 0.000000, 0.000000));
+#if QUATERNION_CAMERA
+		quaternionCamera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
+		quaternionCamera.setRotation(glm::vec3(0.000000, 0.000000, 0.000000));
+#else
+		camera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
+		camera.setRotation(glm::vec3(0.000000, 0.000000, 0.000000));
+#endif
 		break;
 	case 1:
 		camera.setTranslation(glm::vec3(-2.964525, -1.904862, 3.256133));

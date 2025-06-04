@@ -17,7 +17,19 @@
 #define MEASURE_FRAME 2000
 #endif
 
-#define ASSET 0
+/* cameras */
+#define QUATERNION_CAMERA true
+#define LOAD_NERF_CAMERA true
+#define CAMERA_FILE "transforms_val.json"
+#define FOV_Y 39
+#define NEAR_PLANE 0.1
+#define FAR_PLANE 5000
+// quaternion camera
+#define CAM_MOVE_SPEED 0.15f
+#define CAM_ROTATION_SPEED 0.5f
+
+
+#define ASSET 3
 #define LOAD_GLTF 0
 
  // ---------- split blas ---------- //
@@ -42,15 +54,21 @@
 
 #if ASSET == 0
 #define ASSET_PATH "3DGRTModels/lego/"
+#define PLY_FILE "lego.ply"
 
 #elif ASSET == 1
 #define ASSET_PATH "3DGRTModels/bonsai/"
+#define PLY_FILE "bonsai.ply"
+#undef LOAD_NERF_CAMERA
+#define LOAD_NERF_CAMERA false
 
 #elif ASSET == 2
 #define ASSET_PATH "3DGRTModels/chair/"
+#define PLY_FILE "chair.ply"
 
 #elif ASSET == 3
 #define ASSET_PATH "3DGRTModels/hotdog/"
+#define PLY_FILE "hotdog.ply"
 #endif
 
 #if TEXTURE_COMPRESSION
