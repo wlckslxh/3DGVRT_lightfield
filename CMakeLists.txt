@@ -120,6 +120,7 @@ endif()
 
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+add_definitions(-D_HAS_STD_BYTE=0)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
