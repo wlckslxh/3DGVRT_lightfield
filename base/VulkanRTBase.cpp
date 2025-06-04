@@ -3522,14 +3522,11 @@ void VulkanRTBase::handleMouseMove(int32_t x, int32_t y)
 
 #if QUATERNION_CAMERA
 	if (mouseState.buttons.left) {
-		//quaternionCamera.rotate(glm::vec3(dy * camera.rotationSpeed * 0.1f, -dx * CAM_ROTATION_SPEED * 0.1f, 0.0f));
-		//quaternionCamera.rotate(glm::vec3(dy * camera.rotationSpeed * 0.1f, -dx * CAM_ROTATION_SPEED * 0.1f, 0.0f));
 		quaternionCamera.rotate(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(dy * CAM_ROTATION_SPEED * 0.1f));
 		quaternionCamera.rotate(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-dx * CAM_ROTATION_SPEED * 0.1f));
 		viewUpdated = true;
 	}
 	if (mouseState.buttons.right) {
-		//quaternionCamera.rotate(glm::vec3(0.0f, 0.0f, (float)dx * CAM_ROTATION_SPEED * .05f));
 		quaternionCamera.rotate(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians((float)dx * CAM_ROTATION_SPEED * .05f));
 		viewUpdated = true;
 	}
@@ -3834,22 +3831,22 @@ void VulkanRTBase::initCamera(DatasetType type, string path)
 		quaternionCamera.setDatasetCamera(type, 0, (float)width / (float)height);
 	}
 	else {
-		quaternionCamera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 5000.0f);
+		quaternionCamera.setPerspective(60.0f, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);
 		setCamera(0);
 	}
 #else
 	camera.type = Camera::CameraType::SG_camera;
 	camera.movementSpeed = 5.0f;
-#ifndef __ANDROID__
+	#ifndef __ANDROID__
 	camera.rotationSpeed = 0.25f;
-#endif
-	if (type != Camera::DatasetType::none) {
+	#endif
+	if (type != DatasetType::none) {
 		camera.setNearFar(NEAR_PLANE, FAR_PLANE);
 		camera.loadDatasetCamera(type, path, width, height);
 		camera.setDatasetCamera(type, 0, (float)width / (float)height);
 	}
 	else {
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 5000.0f);
+		camera.setPerspective(FOV_Y, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);
 		setCamera(0);
 	}
 #endif

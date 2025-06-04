@@ -46,10 +46,12 @@ public:
     glm::mat4 getViewMatrix() const {
         // 쿼터니언을 행렬로 변환하고, 역행렬 적용 (View matrix)
         glm::mat4 rotMat = glm::toMat4(glm::conjugate(rotation));
-        //glm::mat4 rotMat = glm::mat4_cast(rotation);
         glm::mat4 transMat = glm::translate(glm::mat4(1.0f), -position);
-        //return viewMatrix;
+#if LOAD_NERF_CAMERA
+        return viewMatrix;
+#else
         return rotMat * transMat;
+#endif
     }
 
     glm::mat4 getProjectionMatrix() const {
@@ -125,15 +127,11 @@ public:
 
     void setNerfCamera(uint32_t idx) {
         CameraFrame* frame = &cameraLoader.nerfCameras.frames[idx];
-        this->rotation = frame->rotation;
-        this->position = frame->position;
-        //viewMatrix = frame->transformMatrix;
-        //perspective = cameraLoader.nerfCameras.projectionMatrix;
+        viewMatrix = frame->transformMatrix;
     }
 
     void setDatasetCamera(DatasetType type, uint32_t idx, float aspect) {
         if (type == nerf) {
-            //setPerspective(cameraLoader.fovy, aspect, znear, zfar);
             setPerspective(FOV_Y, aspect, znear, zfar);
             setNerfCamera(idx);
         }
@@ -142,7 +140,6 @@ public:
     void loadDatasetCamera(DatasetType type, string path, uint32_t width, uint32_t height) {
         if (type == nerf) {
             cameraLoader.loadNerfCameraData(path, width, height, znear, zfar);
-            //cameraLoader.PrintCameraData(cameraLoader.nerfCameras);
         }
         dataType = type;
     }
