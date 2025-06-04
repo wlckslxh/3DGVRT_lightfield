@@ -142,7 +142,7 @@ public:
 	{
 		title = "Abura Soba - Vulkan Full Ray Tracing";
 #if LOAD_NERF_CAMERA
-		initCamera(DatasetType::nerf, getAssetPath() + "3DGRTModels/lego/transforms_val.json");
+		initCamera(DatasetType::nerf, getAssetPath() + ASSET_PATH + CAMERA_FILE);
 #else
 		initCamera();
 #endif
@@ -1313,7 +1313,7 @@ public:
 #endif
 
 		//gModel.load3DGRTObject(getAssetPath() + "3DGRTModels/lego/ckpt_last.pt", vulkanDevice);
-		gModel.load3DGRTModel(getAssetPath() + ASSET_PATH + "export_last.ply", vulkanDevice);
+		gModel.load3DGRTModel(getAssetPath() + ASSET_PATH + PLY_FILE, vulkanDevice);
 	}
 
 	bool initVulkan() {
