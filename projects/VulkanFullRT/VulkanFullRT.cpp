@@ -88,6 +88,7 @@ public:
 		VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
 		
 		vks::Buffer uniformBuffer;
+		vks::Buffer totalCounts;
 		VkCommandBuffer commandBuffer{ VK_NULL_HANDLE };
 	} gaussianEnclosing;
 
@@ -994,10 +995,11 @@ public:
 	{
 		std::vector<VkDescriptorPoolSize> poolSizes = {
 			// gaussianEnclosing pipeline
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6), // vertices, triangles, position, rotation, scale, density
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6),	// vertices, triangles, position, rotation, scale, density
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),	// particle density
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3)	// particle sph coefficient
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3),	// particle sph coefficient
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1)		// particle totalCount
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 1); // gaussianEnclosing pipeline
 
@@ -1027,6 +1029,8 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 9),
 			// Binding 10: Particle Sph Coefficient
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 10),
+			// Binding 11: Particle Total Counts
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, 11),
 		};
 
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
@@ -1059,6 +1063,8 @@ public:
 			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 9, &gModel.featuresSpecular.storageBuffer.descriptor),
 			// Binding 10: Particle sph coefficient
 			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10, &particleSphCoefficients.descriptor),
+			// Binding 11: Particle Total Counts
+			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 11, &gaussianEnclosing.totalCounts.descriptor),
 		};
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
@@ -1404,6 +1410,7 @@ public:
 		}
 
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &gaussianEnclosing.uniformBuffer, sizeof(vks::utils::GaussianEnclosingUniformData), nullptr));
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &gaussianEnclosing.totalCounts, sizeof(unsigned int), 0));
 		updateGaussianEnclosingUniformBuffer();
 
 		// allocate device memory for vertex/index buffer
