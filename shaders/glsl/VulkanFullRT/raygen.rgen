@@ -137,10 +137,9 @@ void main()
 
 	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
 
-	const uint iterations = ITERATIONS;
-	uint iter = 0;
-	while((iter < iterations) && (rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance)){
-		iter++;
+//	const uint iterations = ITERATIONS;
+//	uint iter = 0;
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance)){
 
 		// Gather k hits
 		trace(rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
