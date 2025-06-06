@@ -750,20 +750,21 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
 	ImGui::SetNextWindowPos(ImVec2(10 * UIOverlay.scale, 10 * UIOverlay.scale));
 	ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiSetCond_FirstUseEver);
-	ImGui::Begin("Sponza scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+	ImGui::Begin("", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::TextUnformatted(title.c_str());
 	ImGui::TextUnformatted(deviceProperties.deviceName);
 	ImGui::Text("%.2f ms/frame (%.1d fps)", (1000.0f / lastFPS), lastFPS);
 	//imgui custom
 	//Todo1 : new text line for shadow / reflection / refraction	on / off
 	//Todo2 : add new window for camera movement(maybe hard)
-	ImGui::Checkbox("Shadow ray", &pushConstants.rayOption.shadowRay);
-	ImGui::Checkbox("Reflection", &pushConstants.rayOption.reflection);
-	ImGui::Checkbox("Refraction", &pushConstants.rayOption.refraction);
+	//ImGui::Checkbox("Shadow ray", &pushConstants.rayOption.shadowRay);
+	//ImGui::Checkbox("Reflection", &pushConstants.rayOption.reflection);
+	//ImGui::Checkbox("Refraction", &pushConstants.rayOption.refraction);
 	ImGui::Text("Camera Vertical Movement");
 	ImGui::SameLine();
 	if (ImGui::ArrowButton("##Up", ImGuiDir_Up) || ImGui::IsItemActive()) {
 		camera.keys.up = true;
+		quaternionCamera.move(glm::vec3(0, CAM_MOVE_SPEED * 0.2, 0));
 	}
 	if (ImGui::IsItemDeactivated()) {
 		camera.keys.up = false;
@@ -771,6 +772,7 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 	ImGui::SameLine();
 	if (ImGui::ArrowButton("##Down", ImGuiDir_Down) || ImGui::IsItemActive()) {
 		camera.keys.down = true;
+		quaternionCamera.move(glm::vec3(0, -CAM_MOVE_SPEED * 0.2, 0));
 	}
 	if (ImGui::IsItemDeactivated()) {
 		camera.keys.down = false;
@@ -789,14 +791,15 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 		setCamera(2);
 	}
 
-	ImGui::Separator();
-	ImGui::Text("Light Attenuation Factor");
-	ImGui::SliderFloat("_alpha", &pushConstants.lightAttVar.alpha, 0.001f, 1.0f);
-	ImGui::SliderFloat("_beta", &pushConstants.lightAttVar.beta, 0.001f, 1.0f);
-	ImGui::SliderFloat("_gamma", &pushConstants.lightAttVar.gamma, 0.001f, 1.0f);
-	ImGui::Separator();
+	//ImGui::Separator();
+	//ImGui::Text("Light Attenuation Factor");
+	//ImGui::SliderFloat("_alpha", &pushConstants.lightAttVar.alpha, 0.001f, 1.0f);
+	//ImGui::SliderFloat("_beta", &pushConstants.lightAttVar.beta, 0.001f, 1.0f);
+	//ImGui::SliderFloat("_gamma", &pushConstants.lightAttVar.gamma, 0.001f, 1.0f);
+	//ImGui::Separator();
 
 #if LOAD_NERF_CAMERA
+	ImGui::Separator();
 	static vector<string> camNames = quaternionCamera.getCamNames();
 	static const char* current_item = "0";
 	
@@ -820,6 +823,7 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 		}
 		ImGui::EndCombo();
 	}
+	ImGui::Separator();
 	ImGui::Separator();
 #endif
 
@@ -3978,21 +3982,6 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 	case 2:
 		camera.setTranslation(glm::vec3(0.003964, 1.457728, -2.351941));
 		camera.setRotation(glm::vec3(-19.874851, 180.675659, 0.000000));
-		break;
-	}
-#elif ASSET == 4
-	switch (camIdx) {
-	case 0:
-		quaternionCamera.setTranslation(glm::vec3(-0.365201, -1.725487, 0.609940));
-		quaternionCamera.setRotation(glm::quat(0.722955, 0.649919, 0.076581, -0.221532));
-		break;
-	case 1:
-		quaternionCamera.setTranslation(glm::vec3(-1.309669, -1.612354, 1.203463));
-		quaternionCamera.setRotation(glm::quat(0.288510, 0.467819, 0.296556, -0.781001));
-		break;
-	case 2:
-		quaternionCamera.setTranslation(glm::vec3(0.793468, -2.676618, -0.267739));
-		quaternionCamera.setRotation(glm::quat(-0.187609, -0.338001, 0.690686, -0.611156));
 		break;
 	}
 #endif
