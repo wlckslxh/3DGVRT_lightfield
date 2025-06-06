@@ -58,6 +58,14 @@ public:
         return perspective;
     }
 
+    void printMat4(glm::mat4 mat) {
+        cout << "{";
+        for (int i = 0; i < 4; i++) {
+            cout << mat[i][0] << "," << mat[i][1] << "," << mat[i][2] << "," << mat[i][3] << ",";
+        }
+        cout << "}\n";
+    }
+
     void setPerspective(float fov, float aspect, float znear, float zfar)
     {
         glm::mat4 currentMatrix = perspective;
@@ -112,6 +120,11 @@ public:
     void setNerfCamera(uint32_t idx) {
         CameraFrame* frame = &cameraLoader.nerfCameras.frames[idx];
         viewMatrix = frame->transformMatrix;
+
+        cout << "perspective mat:\n";
+        printMat4(perspective);
+        cout << "view mat:\n";
+        printMat4(viewMatrix);
     }
 
     void setDatasetCamera(DatasetType type, uint32_t idx, float aspect) {

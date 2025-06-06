@@ -924,7 +924,7 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
 			// Binding 5: Storage buffer - Particle Sph Coefficients
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
-	#if SPLIT_BLAS
+#if SPLIT_BLAS && !RAY_QUERY
 			// Binding 6: Storage buffer - primitive Id
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 6),
 	#endif
@@ -1432,15 +1432,15 @@ public:
 #endif
 
 #if SPLIT_BLAS && !RAY_QUERY
-		std::cout << "*** Start split BLAS ***\n";
+		std::cout << "*** Split BLAS BEGIN ***\n";
 		auto startTime = std::chrono::high_resolution_clock::now();
 		splitBLAS.init(vulkanDevice);
 		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
 		splitBLAS.createAS(graphicsQueue);
-		std::cout << "*** End split BLAS ***\n";
 		auto      endTime = std::chrono::high_resolution_clock::now();
 		long long loadTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 		std::cout << "Time spent for Split BLAS " << loadTime << "ms" << std::endl;
+		std::cout << "*** Split BLAS END ***\n";
 #else
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
