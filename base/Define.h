@@ -19,7 +19,7 @@
 
 /* cameras */
 #define QUATERNION_CAMERA true
-#define LOAD_NERF_CAMERA false
+#define LOAD_NERF_CAMERA true
 #define CAMERA_FILE "transforms_val.json"
 #define FOV_Y 39.6f
 #define NEAR_PLANE 0.005f
