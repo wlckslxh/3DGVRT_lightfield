@@ -135,6 +135,7 @@ void SplitBLAS::saveGeometries_SBLAS(std::vector<glm::vec3>& vertexBuffer, std::
 
 	std::vector<std::unordered_map<glm::vec3, uint32_t>> uniqueVertices(numCellsTotal);
 
+	int last_percent = -1;
 	// split vertexes
 	uint32_t primitiveId = 0;
 	for (int i = 0; i < indexBuffer.size(); i += 3) {
@@ -175,7 +176,13 @@ void SplitBLAS::saveGeometries_SBLAS(std::vector<glm::vec3>& vertexBuffer, std::
 			}
 		}
 		primitiveId++;
+		int percent = static_cast<int>(std::floor((i + 1) * 100.0f / indexBuffer.size()));
+		if (percent != last_percent) {
+			cout << "\rprogress: " << percent << "% " << flush;
+			last_percent = percent;
+		}
 	}
+	cout << "\n";
 }
 
 void SplitBLAS::copyToDevice(VkQueue& queue) {
