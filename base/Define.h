@@ -21,9 +21,9 @@
 #define QUATERNION_CAMERA true
 #define LOAD_NERF_CAMERA false
 #define CAMERA_FILE "transforms_val.json"
-#define FOV_Y 39
-#define NEAR_PLANE 0.1
-#define FAR_PLANE 5000
+#define FOV_Y 39.6f
+#define NEAR_PLANE 0.005f
+#define FAR_PLANE 20.00f
 // quaternion camera
 #define CAM_MOVE_SPEED 0.15f
 #define CAM_ROTATION_SPEED 0.5f
