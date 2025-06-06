@@ -789,27 +789,6 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 		setCamera(2);
 	}
 
-//#if QUATERNION_CAMERA
-//	/* flip axis buttons */
-//	ImGui::Text("Flip Axis");
-//	ImGui::SameLine();
-//	if (ImGui::Button(" x ")) {
-//		quaternionCamera.flipX();
-//	}
-//	ImGui::SameLine();
-//	if (ImGui::Button(" y ")) {
-//		quaternionCamera.flipY();
-//	}
-//	ImGui::SameLine();
-//	if (ImGui::Button(" z ")) {
-//		quaternionCamera.flipZ();
-//	}
-//	ImGui::SameLine();
-//	if (ImGui::Button(" w ")) {
-//		quaternionCamera.flipW();
-//	}
-//#endif
-
 	ImGui::Separator();
 	ImGui::Text("Light Attenuation Factor");
 	ImGui::SliderFloat("_alpha", &pushConstants.lightAttVar.alpha, 0.001f, 1.0f);
@@ -1740,7 +1719,7 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			case KEY_P:
 #if QUATERNION_CAMERA
 				printf("quaternionCamera.setTranslation(glm::vec3(%f, %f, %f));\n", quaternionCamera.position.x, quaternionCamera.position.y, quaternionCamera.position.z);
-				printf("quaternionCamera.setRotation(glm::quat(%f, %f, %f, %f));\n", quaternionCamera.rotation.x, quaternionCamera.rotation.y, quaternionCamera.rotation.z, quaternionCamera.rotation.w);
+				printf("quaternionCamera.setRotation(glm::quat(%f, %f, %f, %f));\n", quaternionCamera.rotation.w, quaternionCamera.rotation.x, quaternionCamera.rotation.y, quaternionCamera.rotation.z);
 #else
 				printf("camera.setTranslation(glm::vec3(%f, %f, %f));\n", camera.position.x, camera.position.y, camera.position.z);
 				printf("camera.setRotation(glm::vec3(%f, %f, %f));\n", camera.rotation.x, camera.rotation.y, camera.rotation.z);
@@ -3858,19 +3837,94 @@ void VulkanRTBase::initCamera(DatasetType type, string path)
 	}
 #endif
 }
-
+#if QUATERNION_CAMERA
 void VulkanRTBase::setCamera(uint32_t camIdx)
 {
 #if ASSET == 0
 	switch (camIdx) {
 	case 0:
-#if QUATERNION_CAMERA
 		quaternionCamera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
-		quaternionCamera.setRotation(glm::vec3(0.000000, 0.000000, 0.000000));
+		quaternionCamera.setRotation(glm::quat(1.000000, 0.000000, 0.000000, 0.000000));
+		break;
+	case 1:
+		quaternionCamera.setTranslation(glm::vec3(-2.469462, -1.086427, 1.776369));
+		quaternionCamera.setRotation(glm::quat(0.735665, 0.390933, -0.262634, -0.486818));
+		break;
+	case 2:
+		quaternionCamera.setTranslation(glm::vec3(2.970086, 0.152353, 0.492059));
+		quaternionCamera.setRotation(glm::quat(0.508053, 0.455133, 0.495938, 0.537384));
+		break;
+	}
+#elif ASSET == 1
+	switch (camIdx) {
+	case 0:
+		camera.setTranslation(glm::vec3(1.146842, 2.282518, 1.067378));
+		camera.setRotation(glm::vec3(-22.524939, 58.374725, 0.000000));
+		break;
+	case 1:
+		camera.setTranslation(glm::vec3(-6.497121, 1.637290, -1.421643));
+		camera.setRotation(glm::vec3(10.925017, -102.249245, 0.000000));
+		break;
+	case 2:
+		camera.setTranslation(glm::vec3(4.291043, 4.683933, -1.352913));
+		camera.setRotation(glm::vec3(-20.874960, 106.026215, 0.000000));
+		break;
+	}
+#elif ASSET == 2
+	switch (camIdx) {
+	case 0:
+		quaternionCamera.setTranslation(glm::vec3(1.669114, -1.879747, 1.195684));
+		quaternionCamera.setRotation(glm::quat(0.795629, 0.502242, 0.203981, 0.270404));
+		break;
+	case 1:
+		quaternionCamera.setTranslation(glm::vec3(-0.136397, -2.867999, 0.231685));
+		quaternionCamera.setRotation(glm::quat(0.757453, 0.652819, -0.004727, -0.008353));
+		break;
+	case 2:
+		quaternionCamera.setTranslation(glm::vec3(-2.791523, -0.350398, 0.014455));
+		quaternionCamera.setRotation(glm::quat(0.530198, 0.496366, -0.497246, -0.474613));
+		break;
+	}
+#elif ASSET == 3
+	switch (camIdx) {
+	case 0:
+		quaternionCamera.setTranslation(glm::vec3(2.322310, -1.470848, 3.113254));
+		quaternionCamera.setRotation(glm::quat(0.809165, 0.294860, 0.189225, 0.471703));
+		break;
+	case 1:
+		quaternionCamera.setTranslation(glm::vec3(-2.032667, -2.142409, 1.443996));
+		quaternionCamera.setRotation(glm::quat(0.793777, 0.482470, -0.163040, -0.332505));
+		break;
+	case 2:
+		quaternionCamera.setTranslation(glm::vec3(0.307380, 2.430840, 0.904400));
+		quaternionCamera.setRotation(glm::quat(-0.003290, -0.058722, -0.576954, -0.814657));
+		break;
+	}
+#elif ASSET == 4
+	switch (camIdx) {
+	case 0:
+		quaternionCamera.setTranslation(glm::vec3(-0.365201, -1.725487, 0.609940));
+		quaternionCamera.setRotation(glm::quat(0.722955, 0.649919, 0.076581, -0.221532));
+		break;
+	case 1:
+		quaternionCamera.setTranslation(glm::vec3(-1.309669, -1.612354, 1.203463));
+		quaternionCamera.setRotation(glm::quat(0.288510, 0.467819, 0.296556, -0.781001));
+		break;
+	case 2:
+		quaternionCamera.setTranslation(glm::vec3(0.793468, -2.676618, -0.267739));
+		quaternionCamera.setRotation(glm::quat(-0.187609, -0.338001, 0.690686, -0.611156));
+		break;
+	}
+#endif
+}
 #else
+void VulkanRTBase::setCamera(uint32_t camIdx)
+{
+#if ASSET == 0
+	switch (camIdx) {
+	case 0:
 		camera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
 		camera.setRotation(glm::vec3(0.000000, 0.000000, 0.000000));
-#endif
 		break;
 	case 1:
 		camera.setTranslation(glm::vec3(-2.964525, -1.904862, 3.256133));
@@ -3929,17 +3983,18 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #elif ASSET == 4
 	switch (camIdx) {
 	case 0:
-		camera.setTranslation(glm::vec3(-21.893288, 6.842527, -2.459376));
-		camera.setRotation(glm::vec3(-4.600013, -98.299873, 0.000000));
+		quaternionCamera.setTranslation(glm::vec3(-0.365201, -1.725487, 0.609940));
+		quaternionCamera.setRotation(glm::quat(0.722955, 0.649919, 0.076581, -0.221532));
 		break;
 	case 1:
-		camera.setTranslation(glm::vec3(45.261234, 5.415184, 30.707674));
-		camera.setRotation(glm::vec3(3.950051, -110.674309, 0.000000));
+		quaternionCamera.setTranslation(glm::vec3(-1.309669, -1.612354, 1.203463));
+		quaternionCamera.setRotation(glm::quat(0.288510, 0.467819, 0.296556, -0.781001));
 		break;
 	case 2:
-		camera.setTranslation(glm::vec3(25.427555, 5.962574, -58.274254));
-		camera.setRotation(glm::vec3(-0.999935, 144.175308, 0.000000));
+		quaternionCamera.setTranslation(glm::vec3(0.793468, -2.676618, -0.267739));
+		quaternionCamera.setRotation(glm::quat(-0.187609, -0.338001, 0.690686, -0.611156));
 		break;
 	}
 #endif
 }
+#endif

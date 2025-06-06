@@ -19,7 +19,7 @@
 
 /* cameras */
 #define QUATERNION_CAMERA true
-#define LOAD_NERF_CAMERA true
+#define LOAD_NERF_CAMERA false
 #define CAMERA_FILE "transforms_val.json"
 #define FOV_Y 39
 #define NEAR_PLANE 0.1
@@ -69,6 +69,10 @@
 #elif ASSET == 3
 #define ASSET_PATH "3DGRTModels/hotdog/"
 #define PLY_FILE "hotdog.ply"
+
+#elif ASSET == 4
+#define ASSET_PATH "3DGRTModels/flowers/"
+#define PLY_FILE "flowers.ply"
 #endif
 
 #if TEXTURE_COMPRESSION

@@ -89,12 +89,8 @@ public:
         this->position = position;
     }
 
-    void setRotation(glm::vec3 radians) {
-        glm::quat qPitch = glm::angleAxis(radians.x, glm::vec3(1, 0, 0));
-        glm::quat qYaw = glm::angleAxis(radians.y, glm::vec3(0, 1, 0));
-        glm::quat qRoll = glm::angleAxis(radians.z, glm::vec3(0, 0, 1));
-
-        rotation = glm::normalize(qYaw * qPitch * qRoll);
+    void setRotation(glm::quat radians) {
+        rotation = radians;
     }
 
     void rotate(const glm::vec3& localAxis, float angleRadians) {
@@ -106,18 +102,6 @@ public:
     void move(const glm::vec3& delta) {
         // 로컬 방향으로 이동하려면 쿼터니언 회전을 적용
         position += rotation * delta;
-    }
-
-    glm::vec3 getForward() const {
-        return rotation * glm::vec3(0, 0, -1);
-    }
-
-    glm::vec3 getRight() const {
-        return rotation * glm::vec3(1, 0, 0);
-    }
-
-    glm::vec3 getUp() const {
-        return rotation * glm::vec3(0, 1, 0);
     }
 
     /* load nerf camera */
@@ -142,18 +126,5 @@ public:
             cameraLoader.loadNerfCameraData(path, width, height, znear, zfar);
         }
         dataType = type;
-    }
-
-    void flipX() {
-        rotation.x *= -1;
-    }
-    void flipY() {
-        rotation.y *= -1;
-    }
-    void flipZ() {
-        rotation.z *= -1;
-    }
-    void flipW() {
-        rotation.w *= -1;
     }
 };
