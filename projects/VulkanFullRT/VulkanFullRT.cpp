@@ -145,11 +145,6 @@ public:
 	VulkanFullRT() : VulkanRTCommon()
 	{
 		title = "Abura Soba - Vulkan Full Ray Tracing";
-#if LOAD_NERF_CAMERA
-		initCamera(DatasetType::nerf, getAssetPath() + ASSET_PATH + CAMERA_FILE);
-#else
-		initCamera();
-#endif
 
 #if RAY_QUERY
 		rayQueryOnly = true;
@@ -1350,6 +1345,12 @@ public:
 			std::cout << "VulkanFullRT initVulkan failed.\n";
 			return false;
 		}
+
+#if LOAD_NERF_CAMERA
+		initCamera(DatasetType::nerf, getAssetPath() + ASSET_PATH + CAMERA_FILE);
+#else
+		initCamera();
+#endif
 
 		return true;
 	}

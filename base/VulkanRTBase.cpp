@@ -918,7 +918,7 @@ void VulkanRTBase::calculateFPS(BaseFrameObject& frame)
 		if (frame.timeStamps[1] != 0) {
 			//timeRecords.push_back(frame.timeStamps[0]);
 
-			LOGD("[Timestamp] Current time : %d\n", frame.timeStamps[0]);
+			LOGD("[Timestamp] Current time : %lu\n", frame.timeStamps[0]);
 			recordResults.push_back(frame.timeStamps[0]);
 			if (recordCount == measureFrame + swapChain.imageCount + startFrame) {
 				VkPhysicalDeviceLimits device_limits = deviceProperties.limits;
@@ -1858,11 +1858,11 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		short wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 
 		if (camera.type == Camera::SG_camera) {
-#if Y_IS_UP
+#if defined(Y_IS_UP)
 			glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 			glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
 			glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
-#else N_IS_UP
+#elif defined(N_IS_UP)
 			glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 			glm::vec3 vVec = glm::vec3(0.0f, 0.0f, 1.0f);
 			glm::vec3 nVec = glm::vec3(0.0f, -1.0f, 0.0f);
