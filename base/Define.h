@@ -51,6 +51,7 @@
 #define USE_ANIMATION 0 // 0 is Default
 
 #define N_IS_UP		// Should be managed with 3DGRT Asset Num.
+//#define Y_IS_UP
 
 #if ASSET == 0
 #define ASSET_PATH "3DGRTModels/lego/"

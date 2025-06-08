@@ -1346,12 +1346,6 @@ public:
 			return false;
 		}
 
-#if LOAD_NERF_CAMERA
-		initCamera(DatasetType::nerf, getAssetPath() + ASSET_PATH + CAMERA_FILE);
-#else
-		initCamera();
-#endif
-
 		return true;
 	}
 

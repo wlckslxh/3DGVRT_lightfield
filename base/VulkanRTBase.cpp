@@ -1491,7 +1491,13 @@ bool VulkanRTBase::initVulkan()
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &semaphores.renderComplete;
 
-	return true;
+#if LOAD_NERF_CAMERA
+	initCamera(DatasetType::nerf, getAssetPath() + ASSET_PATH + CAMERA_FILE);
+#else
+	initCamera();
+#endif
+
+	 return true;
 }
 
 #if defined(_WIN32)
@@ -1950,6 +1956,8 @@ int32_t VulkanRTBase::handleAppInput(struct android_app* app, AInputEvent* event
 					// check distance between two fingers
 					float dx = x2 - x1;
 					float dy = y2 - y1;
+					dx *= vulkanRTBase->camera.movementSpeed;
+					dy *= vulkanRTBase->camera.movementSpeed;
 					float currentDistance = sqrt(dx * dx + dy * dy);
 
 					if ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_POINTER_DOWN) {
@@ -3829,6 +3837,9 @@ void VulkanRTBase::initCamera(DatasetType type, string path)
 	camera.movementSpeed = 5.0f;
 	#ifndef __ANDROID__
 	camera.rotationSpeed = 0.25f;
+	#else
+	camera.movementSpeed = 2.0f;
+	camera.rotationSpeed = 0.1f;
 	#endif
 	if (type != DatasetType::none) {
 		camera.setNearFar(NEAR_PLANE, FAR_PLANE);
@@ -3847,7 +3858,7 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #if ASSET == 0
 	switch (camIdx) {
 	case 0:
-		quaternionCamera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
+		quaternionCamera.setTranslation(glm::vec3(0.000000, 0.000000, 41.000031));
 		quaternionCamera.setRotation(glm::quat(1.000000, 0.000000, 0.000000, 0.000000));
 		break;
 	case 1:
@@ -3892,8 +3903,8 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #elif ASSET == 3
 	switch (camIdx) {
 	case 0:
-		quaternionCamera.setTranslation(glm::vec3(23.672188, -12.503467, 22.057573));
-		quaternionCamera.setRotation(glm::quat(0.784588, 0.361140, 0.220845, 0.453021));
+		quaternionCamera.setTranslation(glm::vec3(7.369962, -3.885733, 6.236045));
+		quaternionCamera.setRotation(glm::quat(0.772420, 0.388813, 0.234078, 0.444297));
 		break;
 	case 1:
 		quaternionCamera.setTranslation(glm::vec3(6.034176, -3.261673, 7.523375));
