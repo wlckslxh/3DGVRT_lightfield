@@ -255,8 +255,14 @@ public:
 		/** @brief Set to true if v-sync will be forced for the swapchain */
 		bool vsync = false;
 		/** @brief Enable UI overlay */
+#if EVAL_QUALITY
+		bool overlay = false;
+		// for evaluating quality
+		bool evalQualFlag = false;
+		vks::Buffer currentFrameImg;
+#else
 		bool overlay = true;
-		//bool overlay = false;
+#endif
 	} settings;
 
 	/** @brief State of gamepad input (only used on Android) */

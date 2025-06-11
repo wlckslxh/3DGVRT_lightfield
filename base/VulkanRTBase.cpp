@@ -1030,8 +1030,6 @@ void VulkanRTBase::submitFrame(BaseFrameObject& frame)
 	}
 
 	frameIndex = (frameIndex + 1) % swapChain.imageCount;
-
-	//vkQueueWaitIdle(graphicsQueue);
 }
 
 void VulkanRTBase::submitFrameCustom(BaseFrameObject& frame, VkCommandBuffer& commandBuffer, std::vector<VkSemaphore> waitSemaphores, std::vector<VkSemaphore> signalSemaphores, std::vector<VkPipelineStageFlags> waitStages)
@@ -1805,8 +1803,12 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				camera.setRotationSpeed(camera.rotationSpeed + 0.5f);
 				printf("setRotationSpeed (Mouse left,middle,right) %f\n", camera.rotationSpeed);
 				break;
+#if EVAL_QUALITY
+			case KEY_O:
+				evalQualFlag = true;
+				break;
+#endif
 			}
-
 		}
 
 		keyPressed((uint32_t)wParam);

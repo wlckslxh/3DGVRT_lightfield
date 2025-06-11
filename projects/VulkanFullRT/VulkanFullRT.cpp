@@ -21,6 +21,11 @@
 #include "SplitBLAS.hpp"
 #endif
 
+#if EVAL_QUALITY
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+#endif
+
 #define DIR_PATH "VulkanFullRT/"
 
 class VulkanFullRT : public VulkanRTCommon
@@ -1462,6 +1467,36 @@ public:
 
 		buildCommandBuffer(currentFrame);
 		VulkanRTBase::submitFrame(currentFrame);
+
+#if EVAL_QUALITY
+		if (evalQualFlag) {
+			std::cout << "qual button pressed!\n";
+			vkQueueWaitIdle(graphicsQueue);
+
+			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &currentFrameImg, width * height * 4, nullptr));
+
+			vulkanDevice->copyImageToBuffer(swapChain.images[currentFrame.imageIndex], currentFrameImg, graphicsQueue, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, width, height);
+
+			VK_CHECK_RESULT(vkMapMemory(device, currentFrameImg.memory, 0, currentFrameImg.size, 0, &currentFrameImg.mapped));
+
+			int stride = width * 4;
+			stbi_write_png("test_png_file_name.png", width, height, 4, currentFrameImg.mapped, stride);
+			std::cout << "file write completed.\n";
+
+			//vkUnmapMemory(device, currentFrameImg.memory);
+
+			// staging buffer free
+
+			//vks::tools::setImageLayout(
+			//	frame.commandBuffer,
+			//	swapChain.images[frame.imageIndex],
+			//	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			//	VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			//	subresourceRange);
+
+			evalQualFlag = false;
+		}
+#endif
 
 #if ENABLE_HIT_COUNTS && !RAY_QUERY
 		vkQueueWaitIdle(graphicsQueue);
