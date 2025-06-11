@@ -918,7 +918,7 @@ void VulkanRTBase::calculateFPS(BaseFrameObject& frame)
 		if (frame.timeStamps[1] != 0) {
 			//timeRecords.push_back(frame.timeStamps[0]);
 
-			LOGD("[Timestamp] Current time : %d\n", frame.timeStamps[0]);
+			LOGD("[Timestamp] Current time : %lu\n", frame.timeStamps[0]);
 			recordResults.push_back(frame.timeStamps[0]);
 			if (recordCount == measureFrame + swapChain.imageCount + startFrame) {
 				VkPhysicalDeviceLimits device_limits = deviceProperties.limits;
@@ -1491,7 +1491,13 @@ bool VulkanRTBase::initVulkan()
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &semaphores.renderComplete;
 
-	return true;
+#if LOAD_NERF_CAMERA
+	initCamera(DatasetType::nerf, getAssetPath() + ASSET_PATH + CAMERA_FILE);
+#else
+	initCamera();
+#endif
+
+	 return true;
 }
 
 #if defined(_WIN32)
@@ -1858,11 +1864,11 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		short wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 
 		if (camera.type == Camera::SG_camera) {
-#if Y_IS_UP
+#if defined(Y_IS_UP)
 			glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 			glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
 			glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
-#else N_IS_UP
+#elif defined(N_IS_UP)
 			glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 			glm::vec3 vVec = glm::vec3(0.0f, 0.0f, 1.0f);
 			glm::vec3 nVec = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -1950,6 +1956,8 @@ int32_t VulkanRTBase::handleAppInput(struct android_app* app, AInputEvent* event
 					// check distance between two fingers
 					float dx = x2 - x1;
 					float dy = y2 - y1;
+					dx *= vulkanRTBase->camera.movementSpeed;
+					dy *= vulkanRTBase->camera.movementSpeed;
 					float currentDistance = sqrt(dx * dx + dy * dy);
 
 					if ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_POINTER_DOWN) {
@@ -3829,6 +3837,9 @@ void VulkanRTBase::initCamera(DatasetType type, string path)
 	camera.movementSpeed = 5.0f;
 	#ifndef __ANDROID__
 	camera.rotationSpeed = 0.25f;
+	#else
+	camera.movementSpeed = 2.0f;
+	camera.rotationSpeed = 0.1f;
 	#endif
 	if (type != DatasetType::none) {
 		camera.setNearFar(NEAR_PLANE, FAR_PLANE);
@@ -3847,7 +3858,7 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #if ASSET == 0
 	switch (camIdx) {
 	case 0:
-		quaternionCamera.setTranslation(glm::vec3(0.000000, 0.000000, 4.400000));
+		quaternionCamera.setTranslation(glm::vec3(0.000000, 0.000000, 41.000031));
 		quaternionCamera.setRotation(glm::quat(1.000000, 0.000000, 0.000000, 0.000000));
 		break;
 	case 1:
@@ -3892,12 +3903,12 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #elif ASSET == 3
 	switch (camIdx) {
 	case 0:
-		quaternionCamera.setTranslation(glm::vec3(2.322310, -1.470848, 3.113254));
-		quaternionCamera.setRotation(glm::quat(0.809165, 0.294860, 0.189225, 0.471703));
+		quaternionCamera.setTranslation(glm::vec3(7.369962, -3.885733, 6.236045));
+		quaternionCamera.setRotation(glm::quat(0.772420, 0.388813, 0.234078, 0.444297));
 		break;
 	case 1:
-		quaternionCamera.setTranslation(glm::vec3(-2.032667, -2.142409, 1.443996));
-		quaternionCamera.setRotation(glm::quat(0.793777, 0.482470, -0.163040, -0.332505));
+		quaternionCamera.setTranslation(glm::vec3(6.034176, -3.261673, 7.523375));
+		quaternionCamera.setRotation(glm::quat(0.809165, 0.294860, 0.189225, 0.471703));
 		break;
 	case 2:
 		quaternionCamera.setTranslation(glm::vec3(0.307380, 2.430840, 0.904400));

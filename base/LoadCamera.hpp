@@ -15,10 +15,14 @@
 #include "json.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
 
+#if defined(__ANDROID__)
+#include <android/asset_manager.h>
+#endif
+
 #define RAD2DEGREE 57.2957795131
 
 using namespace std;
-using json = nlohmann::json;
+using nlohmann::json;
 
 enum DatasetType { none, nerf, collmap };
 
@@ -85,14 +89,40 @@ public:
 	float fovy;
 	vector<string> camNames;
 
-	void loadNerfCameraData(const string& jsonPath, uint32_t width, uint32_t height, float znear, float zfar) {
-		ifstream fin(jsonPath);
-		if (!fin.is_open()) {
-			throw runtime_error("Failed to open file : " + jsonPath);
+#ifdef __ANDROID__
+	json loadJsonFromFile(const std::string& jsonPath) {
+		AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, jsonPath.c_str(), AASSET_MODE_STREAMING);
+		if (!asset) {
+			throw std::runtime_error("Failed to open asset: " + jsonPath);
 		}
 
+		size_t size = AAsset_getLength(asset);
+		std::vector<char> buffer(size);
+		AAsset_read(asset, buffer.data(), size);
+		AAsset_close(asset);
+
+		std::string jsonString(buffer.begin(), buffer.end());
+		std::stringstream ss(jsonString);
+
+		json j;
+		ss >> j;
+		return j;
+	}
+
+#else
+	json loadJsonFromFile(const std::string& jsonPath) {
+		std::ifstream fin(jsonPath);
+		if (!fin.is_open()) {
+			throw std::runtime_error("Failed to open file : " + jsonPath);
+		}
 		json j;
 		fin >> j;
+		return j;
+	}
+#endif
+
+	void loadNerfCameraData(const string& jsonPath, uint32_t width, uint32_t height, float znear, float zfar) {
+		json j = loadJsonFromFile(jsonPath);
 
 		nerfCameras.cameraAngleX = j["camera_angle_x"].get<float>();
 		calcIntrinsics(nerfCameras.cameraAngleX, width, height, znear, zfar);

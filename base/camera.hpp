@@ -32,11 +32,11 @@ private:
 	{
 		glm::mat4 currentMatrix = matrices.view;
 
-#if Y_IS_UP
+#if defined(Y_IS_UP)
 		glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 		glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
 		glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
-#else N_IS_UP
+#elif defined(N_IS_UP)
 		glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 		glm::vec3 vVec = glm::vec3(0.0f, 0.0f, 1.0f);
 		glm::vec3 nVec = glm::vec3(0.0f, -1.0f, 0.0f);
@@ -251,11 +251,11 @@ public:
 			{
 				float moveSpeed = deltaTime * movementSpeed;
 
-#if Y_IS_UP
+#if defined(Y_IS_UP)
 				glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 				glm::vec3 vVec = glm::vec3(0.0f, 1.0f, 0.0f);
 				glm::vec3 nVec = glm::vec3(0.0f, 0.0f, 1.0f);
-#else N_IS_UP
+#elif defined(N_IS_UP)
 				glm::vec3 uVec = glm::vec3(1.0f, 0.0f, 0.0f);
 				glm::vec3 vVec = glm::vec3(0.0f, 0.0f, 1.0f);
 				glm::vec3 nVec = glm::vec3(0.0f, -1.0f, 0.0f);

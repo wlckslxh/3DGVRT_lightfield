@@ -33,8 +33,8 @@
 #define LOAD_GLTF 0
 
  // ---------- split blas ---------- //
-#define SPLIT_BLAS 1		// This macro should be managed with 3dgs.glsl
-#define NUMBER_OF_CELLS_PER_LONGEST_AXIS 10
+#define SPLIT_BLAS 0		// This macro should be managed with 3dgs.glsl
+#define NUMBER_OF_CELLS_PER_LONGEST_AXIS 20
 #define SCENE_EPSILON 1e-4f
 #define ONE_VERTEX_BUFFER false
 
@@ -51,6 +51,7 @@
 #define USE_ANIMATION 0 // 0 is Default
 
 #define N_IS_UP		// Should be managed with 3DGRT Asset Num.
+//#define Y_IS_UP
 
 #if ASSET == 0
 #define ASSET_PATH "3DGRTModels/lego/"
