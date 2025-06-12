@@ -121,7 +121,7 @@ void main()
 	vec4 rayDirection = normalize(uboDynamic.viewInverse * vec4(target.xyz, 0.0f));
 
 	/*** 3dgrt style ***/
-	vec3 rayRadiance = vec3(0.0f);
+	vec4 rayRadiance = vec4(0.0f);
 	float rayTransmittance = 1.0f;
 	float rayHitDistance = 0.0f;
 
@@ -180,7 +180,7 @@ void main()
 		}
 	}
 
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayRadiance, 1.0f));
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), rayRadiance);
 //	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayHitDistance / 10.0f, rayHitDistance / 10.0f, rayHitDistance / 10.0f, 1.0f));
 
 #if ENABLE_HIT_COUNTS

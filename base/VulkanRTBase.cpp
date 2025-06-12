@@ -814,7 +814,7 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 				if(!is_selected){
 					//ImGui::SetItemDefaultFocus();
 #if QUATERNION_CAMERA
-					quaternionCamera.setDatasetCamera(quaternionCamera.dataType, n, (float)width / height);
+					quaternionCamera.setDatasetCamera(quaternionCamera.dataType, n, (float)width / height, true);
 #else
 					camera.setDatasetCamera(camera.dataType, n, (float)width / height);
 #endif
@@ -1806,6 +1806,7 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 #if EVAL_QUALITY
 			case KEY_O:
 				evalQualFlag = true;
+				evalCameraIdx = 0;
 				break;
 #endif
 			}
@@ -3828,7 +3829,7 @@ void VulkanRTBase::initCamera(DatasetType type, string path)
 	if (type != DatasetType::none) {
 		quaternionCamera.setPerspective(FOV_Y, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);
 		quaternionCamera.loadDatasetCamera(type, path, width, height);
-		quaternionCamera.setDatasetCamera(type, 0, (float)width / (float)height);
+		quaternionCamera.setDatasetCamera(type, 0, (float)width / (float)height, true);
 	}
 	else {
 		quaternionCamera.setPerspective(60.0f, (float)width / (float)height, NEAR_PLANE, FAR_PLANE);

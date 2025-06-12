@@ -1470,7 +1470,10 @@ public:
 
 #if EVAL_QUALITY
 		if (evalQualFlag) {
-			std::cout << "qual button pressed!\n";
+
+			if (evalCameraIdx == 0)
+				std::cout << "*** Evaluate quality BEGIN ***\n";
+
 			vkQueueWaitIdle(graphicsQueue);
 
 			VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &currentFrameImg, width * height * 4, nullptr));
@@ -1480,21 +1483,25 @@ public:
 			VK_CHECK_RESULT(vkMapMemory(device, currentFrameImg.memory, 0, currentFrameImg.size, 0, &currentFrameImg.mapped));
 
 			int stride = width * 4;
-			stbi_write_png("test_png_file_name.png", width, height, 4, currentFrameImg.mapped, stride);
-			std::cout << "file write completed.\n";
+			std::string fileName = "../results/evaluations/output/r_" + std::to_string(evalCameraIdx) + ".png";
+			stbi_write_png(fileName.c_str(), width, height, 4, currentFrameImg.mapped, stride);
 
-			//vkUnmapMemory(device, currentFrameImg.memory);
+			std::cout << "\t- Camera index " << evalCameraIdx << " is completed.\n";
+			evalCameraIdx++;
 
-			// staging buffer free
+			vkUnmapMemory(device, currentFrameImg.memory);
+			vkFreeMemory(device, currentFrameImg.memory, nullptr);
 
-			//vks::tools::setImageLayout(
-			//	frame.commandBuffer,
-			//	swapChain.images[frame.imageIndex],
-			//	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			//	VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			//	subresourceRange);
-
-			evalQualFlag = false;
+#if QUATERNION_CAMERA
+			quaternionCamera.setDatasetCamera(quaternionCamera.dataType, evalCameraIdx, (float)width / height, false);
+#else
+			camera.setDatasetCamera(camera.dataType, evalCameraIdx, (float)width / height);
+#endif
+			
+			if (evalCameraIdx >= quaternionCamera.getNumOfCams()) {
+				evalQualFlag = false;
+				std::cout << "*** Evaluate quality END ***\n";
+			}
 		}
 #endif
 

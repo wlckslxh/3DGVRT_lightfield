@@ -162,7 +162,7 @@ bool processHit(
 	float minParticleAlpha,
 	uint sphEvalDegree,
 	inout float transmittance,
-	inout vec3 radiance,
+	inout vec4 radiance,
 	inout float depth
 #if ENABLE_NORMALS
 	,inout vec3 normal
@@ -214,7 +214,7 @@ bool processHit(
 			sphCoefficients);
 		const vec3 grad = radianceFromSpH(sphEvalDegree, sphCoefficients, rayDirection, true);
 
-		radiance += grad * weight;
+		radiance += vec4(grad * weight, 1.0f);
 		transmittance *= (1 - galpha);
 		depth += hitT * weight;
 

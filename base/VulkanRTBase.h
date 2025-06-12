@@ -202,10 +202,14 @@ public:
 	bool prepared = false;
 	bool resized = false;
 	bool viewUpdated = false;
-	//uint32_t width = 2560;
-	//uint32_t height = 1440;
+
+#if EVAL_QUALITY
+	uint32_t width = 800;
+	uint32_t height = 800;
+#else
 	uint32_t width = 1920;
 	uint32_t height = 1080;
+#endif
 	float initialDistance;
 	/*
 	* List of resolutions
@@ -257,13 +261,17 @@ public:
 		/** @brief Enable UI overlay */
 #if EVAL_QUALITY
 		bool overlay = false;
-		// for evaluating quality
-		bool evalQualFlag = false;
-		vks::Buffer currentFrameImg;
 #else
 		bool overlay = true;
 #endif
 	} settings;
+
+#if EVAL_QUALITY
+	// for evaluating quality
+	bool evalQualFlag = false;
+	vks::Buffer currentFrameImg;
+	unsigned int evalCameraIdx;
+#endif
 
 	/** @brief State of gamepad input (only used on Android) */
 	struct {

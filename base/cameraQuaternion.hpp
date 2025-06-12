@@ -117,20 +117,26 @@ public:
         return cameraLoader.camNames;
     }
 
-    void setNerfCamera(uint32_t idx) {
+    unsigned int getNumOfCams() {
+        return cameraLoader.camNames.size();
+    }
+
+    void setNerfCamera(uint32_t idx, bool debugMsg) {
         CameraFrame* frame = &cameraLoader.nerfCameras.frames[idx];
         viewMatrix = frame->transformMatrix;
 
-        cout << "perspective mat:\n";
-        printMat4(perspective);
-        cout << "view mat:\n";
-        printMat4(viewMatrix);
+        if (debugMsg) {
+            cout << "perspective mat:\n";
+            printMat4(perspective);
+            cout << "view mat:\n";
+            printMat4(viewMatrix);
+        }
     }
 
-    void setDatasetCamera(DatasetType type, uint32_t idx, float aspect) {
+    void setDatasetCamera(DatasetType type, uint32_t idx, float aspect, bool debugMsg) {
         if (type == nerf) {
             setPerspective(FOV_Y, aspect, znear, zfar);
-            setNerfCamera(idx);
+            setNerfCamera(idx, debugMsg);
         }
     }
 
