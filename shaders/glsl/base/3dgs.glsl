@@ -7,7 +7,7 @@
 
 #define NUM_OF_GAUSSIANS 1024 // This macro should be managed with Define.h
 
-#define SPLIT_BLAS 1 // This macro should be managed with Define.h
+#define SPLIT_BLAS 0 // This macro should be managed with Define.h
 
 /* 3dgrt parameters */
 #define EPS_T 1e-9

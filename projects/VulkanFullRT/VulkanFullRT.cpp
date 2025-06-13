@@ -1224,14 +1224,41 @@ public:
 		}
 	}
 
+#if DYNAMIC_CAMERA
+	glm::mat4 getRotatingCameraPose(float radius = 3.0f)
+	{
+		float theta = glm::radians(timer * 360.0f);
+		glm::vec3 camPos = glm::vec3(radius * cos(theta), radius * 2 * sin(theta), radius);
+		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
+		glm::vec3 up = glm::vec3(0.0f, 0.0f, -1.0f);
+
+		glm::vec3 forward = glm::normalize(target - camPos);
+		glm::vec3 right = glm::normalize(glm::cross(up, forward));
+		glm::vec3 true_up = glm::cross(forward, right);
+
+		glm::mat4 C2W(1.0f);
+		C2W[0] = glm::vec4(right, 0.0f);
+		C2W[1] = -glm::vec4(true_up, 0.0f);	// opposite from NeRF camera
+		C2W[2] = -glm::vec4(forward, 0.0f);	// opposite from NeRF camera (since forward is -N in Vulkan)
+		C2W[3] = glm::vec4(camPos, 1.0f);
+		return C2W;
+	}
+#endif
+
 	void updateUniformBuffer()
 	{
+#if DYNAMIC_CAMERA
+		//uniformDataDynamic.viewInverse = glm::inverse(getRotatingCameraPose());
+		uniformDataDynamic.viewInverse = getRotatingCameraPose();
+		uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
+#else
 #if QUATERNION_CAMERA
 		uniformDataDynamic.viewInverse = glm::inverse(quaternionCamera.getViewMatrix());
 		uniformDataDynamic.projInverse = glm::inverse(quaternionCamera.perspective);
 #else
 		uniformDataDynamic.viewInverse = glm::inverse(camera.matrices.view);
 		uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
+#endif
 #endif
 
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
