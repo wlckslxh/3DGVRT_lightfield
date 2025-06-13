@@ -121,7 +121,7 @@ void main()
 	vec4 rayDirection = normalize(uboDynamic.viewInverse * vec4(target.xyz, 0.0f));
 
 	/*** 3dgrt style ***/
-	vec4 rayRadiance = vec4(0.0f);
+	vec4 rayRadiance = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	float rayTransmittance = 1.0f;
 	float rayHitDistance = 0.0f;
 
