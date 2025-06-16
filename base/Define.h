@@ -33,7 +33,7 @@
 #define LOAD_GLTF 0
 
  // ---------- split blas ---------- //
-#define SPLIT_BLAS 0		// This macro should be managed with 3dgs.glsl
+#define SPLIT_BLAS 1		// This macro should be managed with 3dgs.glsl
 #define NUMBER_OF_CELLS_PER_LONGEST_AXIS 20
 #define SCENE_EPSILON 1e-4f
 #define ONE_VERTEX_BUFFER false
@@ -70,7 +70,7 @@
 
 #elif ASSET == 3
 #define ASSET_PATH "3DGRTModels/hotdog/"
-#define PLY_FILE "hotdog.ply"
+#define PLY_FILE "hotdog_3dgrt.ply"
 
 #elif ASSET == 4
 #define ASSET_PATH "3DGRTModels/flowers/"
