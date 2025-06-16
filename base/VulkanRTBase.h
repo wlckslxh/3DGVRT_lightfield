@@ -116,7 +116,26 @@ private:
 	void setupSwapChain();
 
 	std::string shaderDir = "glsl";
+protected:
+	// Returns the path to the root of the glsl or hlsl shader directory.
+	std::string getShadersPath() const;
+	virtual bool updateOverlayBuffers(vks::UIOverlay& UIOverlay, std::vector<BaseFrameObject*>& frameObjects);
+#if USE_TIME_BASED_FPS
+	void calculateFPS();
+#else
+	void calculateFPS(BaseFrameObject& frame);
+#endif
+	// Frame counter to display fps
+	uint32_t frameCounter = 0;
+	uint32_t lastFPS = 0;
+	std::chrono::time_point<std::chrono::high_resolution_clock> lastTimestamp, tPrevEnd;
+
 	int recordCount = 0;
+#if USE_TIME_BASED_FPS
+	unsigned int frameCount = 0;
+	float measureSec = 20.0f;
+	std::chrono::steady_clock::time_point startTime;
+#else
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
 	int measureFrame = 2000;
 #endif
@@ -124,19 +143,11 @@ private:
 	int measureFrame = 500;
 #endif
 	int startFrame = 0;
+#endif
 	float delta_in_ms = -1.0f;
 	bool fpsQuery = false;
 	char measureFrameText[5];
-protected:
-	// Returns the path to the root of the glsl or hlsl shader directory.
-	std::string getShadersPath() const;
-	virtual bool updateOverlayBuffers(vks::UIOverlay& UIOverlay, std::vector<BaseFrameObject*>& frameObjects);
-	void calculateFPS(BaseFrameObject& frame);
 
-	// Frame counter to display fps
-	uint32_t frameCounter = 0;
-	uint32_t lastFPS = 0;
-	std::chrono::time_point<std::chrono::high_resolution_clock> lastTimestamp, tPrevEnd;
 	// Vulkan instance, stores all per-application states
 	VkInstance instance{ VK_NULL_HANDLE };
 	std::vector<std::string> supportedInstanceExtensions;

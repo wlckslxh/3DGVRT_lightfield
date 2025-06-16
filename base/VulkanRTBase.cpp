@@ -343,6 +343,13 @@ void VulkanRTBase::nextFrame(std::vector<BaseFrameObject*>& frameObjects)
 	frameCounter++;
 	auto tEnd = std::chrono::high_resolution_clock::now();
 	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+#if USE_TIME_BASED_FPS
+	if (fpsQuery)
+	{
+		frameCount++;
+		calculateFPS();
+	}
+#endif
 
 #if QUATERNION_CAMERA
 	quaternionCamera.setDeltaTime(frameTimer);
@@ -829,13 +836,12 @@ void VulkanRTBase::updateOverlay(std::vector<BaseFrameObject*>& frameObjects)
 
 	//text input for fps calculation
 	if(!fpsQuery) {
-		//ImGui::PushItemWidth(50);
-		//ImGui::InputInt("fps measure frame input", &measureFrame, 0, 0);
-		//ImGui::InputText("fps measure frame input", measureFrameText, 5, ImGuiInputTextFlags_CharsDecimal);
-		//measureFrame = atoi(measureFrameText);
-		//ImGui::PopItemWidth();
 		if (ImGui::Button("measure fps")) {
+#if USE_TIME_BASED_FPS
+			startTime = std::chrono::high_resolution_clock::now();
+#else
 			startFrame = recordCount + 1;
+#endif
 			fpsQuery = true;
 		}
 		//ImGui::button
@@ -890,9 +896,26 @@ void VulkanRTBase::drawUI(const VkCommandBuffer commandBuffer, const vks::Buffer
 		UIOverlay.draw(commandBuffer, vertexBuffer, indexBuffer);
 	}
 }
+
+#if USE_TIME_BASED_FPS
+void VulkanRTBase::calculateFPS()
+{
+	auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - startTime).count();;
+	if (elapsed >= measureSec)
+	{
+		float fps = frameCount / elapsed;
+#if defined(_WIN32)
+		printf("%f (ms), %f (fps)\n", 1000.0f / fps, fps);
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+		LOGD("%f (ms), %f (fps)\n", 1000.0f / fps, fps);
+#endif
+		frameCount = 0;
+		fpsQuery = false;
+	}
+}
+#else
 void VulkanRTBase::calculateFPS(BaseFrameObject& frame)
 {
-	//static int recordCount = 0;
 	// Time stamp
 	if (fpsQuery && (recordCount == swapChain.imageCount + startFrame || recordCount == measureFrame + swapChain.imageCount + startFrame)) {
 		vkGetQueryPoolResults(device, frame.timeStampQueryPool, 0, 1, frame.timeStamps.size() * sizeof(uint64_t),
@@ -937,6 +960,7 @@ void VulkanRTBase::calculateFPS(BaseFrameObject& frame)
 		recordCount++;
 	}
 }
+#endif
 
 void VulkanRTBase::prepareFrame()
 {
@@ -962,7 +986,9 @@ void VulkanRTBase::prepareFrame(BaseFrameObject& frame)
 	//VK_CHECK_RESULT(vkWaitForFences(device, 1, &frame.renderCompleteFence, VK_TRUE, UINT64_MAX));
 	VkResult res = vkWaitForFences(device, 1, &frame.renderCompleteFence, VK_TRUE, UINT64_MAX);
 
+#if !USE_TIME_BASED_FPS
 	calculateFPS(frame);
+#endif
 
 	VK_CHECK_RESULT(vkResetFences(device, 1, &frame.renderCompleteFence));
 	VkResult result = swapChain.acquireNextImage(frame.presentCompleteSemaphore, &acquiredIndex);

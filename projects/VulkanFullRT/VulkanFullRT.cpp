@@ -116,6 +116,12 @@ public:
 #endif
 
 	const uint32_t timeStampCountPerFrame = 1;
+#if !SPLIT_BLAS
+	VkQueryPool ASBuildTimeStampQueryPool;
+	std::vector<uint64_t> ASBuildTimeStamps;
+	VkDeviceSize blasSize;
+	VkDeviceSize tlasSize;
+#endif
 
 #if LOAD_GLTF
 	// For Triangle Mesh (Should be renamed)
@@ -512,6 +518,7 @@ public:
 	}
 #endif
 
+#if !SPLIT_BLAS
 	void createBottomLevelAccelerationStructure3DGRT()
 	{
 		VkTransformMatrixKHR transformMatrix{};
@@ -587,14 +594,22 @@ public:
 		accelerationStructureBuildGeometryInfo.dstAccelerationStructure = bottomLevelAS3DGRT.handle;
 		accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
 
+		// BLAS Size
+		blasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
 		// Build the acceleration structure on the device via a one-time command buffer submission
 		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
 		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		// Timestamp 0: BLAS build start
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 0);
 		vkCmdBuildAccelerationStructuresKHR(
 			commandBuffer,
 			1,
 			&accelerationStructureBuildGeometryInfo,
 			&pBuildRangeInfo);
+
+		// Timestamp 1: BLAS build end
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 1);
 		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
 
 		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -691,14 +706,23 @@ public:
 		accelerationStructureBuildRangeInfo.transformOffset = 0;
 		VkAccelerationStructureBuildRangeInfoKHR* accelerationBuildStructureRangeInfo = &accelerationStructureBuildRangeInfo;
 
+		// TLAS size
+		tlasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
 		// Build the acceleration structure on the device via a one-time command buffer submission
 		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
 		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+		// Timestamp 2: TLAS build start
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 2);
 		vkCmdBuildAccelerationStructuresKHR(
 			commandBuffer,
 			1,
 			&accelerationBuildGeometryInfo,
 			&accelerationBuildStructureRangeInfo);
+
+		// Timestamp 3: TLAS build end
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 3);
 		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
 
 		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -708,6 +732,7 @@ public:
 		deleteScratchBuffer(scratchBuffer);
 		instancesBuffer.destroy();
 	}
+#endif
 
 #if !RAY_QUERY
 	/*
@@ -1229,14 +1254,41 @@ public:
 		}
 	}
 
+#if DYNAMIC_CAMERA
+	glm::mat4 getRotatingCameraPose(float radius = 3.0f)
+	{
+		float theta = glm::radians(timer * 360.0f);
+		glm::vec3 camPos = glm::vec3(radius * cos(theta), radius * 2 * sin(theta), radius);
+		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
+		glm::vec3 up = glm::vec3(0.0f, 0.0f, -1.0f);
+
+		glm::vec3 forward = glm::normalize(target - camPos);
+		glm::vec3 right = glm::normalize(glm::cross(up, forward));
+		glm::vec3 true_up = glm::cross(forward, right);
+
+		glm::mat4 C2W(1.0f);
+		C2W[0] = glm::vec4(right, 0.0f);
+		C2W[1] = -glm::vec4(true_up, 0.0f);	// opposite from NeRF camera
+		C2W[2] = -glm::vec4(forward, 0.0f);	// opposite from NeRF camera (since forward is -N in Vulkan)
+		C2W[3] = glm::vec4(camPos, 1.0f);
+		return C2W;
+	}
+#endif
+
 	void updateUniformBuffer()
 	{
+#if DYNAMIC_CAMERA
+		//uniformDataDynamic.viewInverse = glm::inverse(getRotatingCameraPose());
+		uniformDataDynamic.viewInverse = getRotatingCameraPose();
+		uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
+#else
 #if QUATERNION_CAMERA
 		uniformDataDynamic.viewInverse = glm::inverse(quaternionCamera.getViewMatrix());
 		uniformDataDynamic.projInverse = glm::inverse(quaternionCamera.perspective);
 #else
 		uniformDataDynamic.viewInverse = glm::inverse(camera.matrices.view);
 		uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
+#endif
 #endif
 
 		FrameObject currentFrame = frameObjects[getCurrentFrameIndex()];
@@ -1354,6 +1406,47 @@ public:
 		return true;
 	}
 
+#if !SPLIT_BLAS
+	void initASBuildTimestamp()
+	{
+		ASBuildTimeStamps.resize(4);
+
+		VkQueryPoolCreateInfo queryPoolInfo{};
+		queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+		queryPoolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+		queryPoolInfo.queryCount = static_cast<uint32_t>(ASBuildTimeStamps.size());
+		VK_CHECK_RESULT(vkCreateQueryPool(device, &queryPoolInfo, nullptr, &ASBuildTimeStampQueryPool));
+
+		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		vkCmdResetQueryPool(commandBuffer, ASBuildTimeStampQueryPool, 0, static_cast<uint32_t>(ASBuildTimeStamps.size()));
+		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
+	}
+
+	void printASBuildInfo()
+	{
+		vkGetQueryPoolResults(device, ASBuildTimeStampQueryPool, 0, ASBuildTimeStamps.size(), ASBuildTimeStamps.size() * sizeof(uint64_t), ASBuildTimeStamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+
+		VkPhysicalDeviceLimits device_limits = deviceProperties.limits;
+		float delta_in_ms_BLAS = float(ASBuildTimeStamps[1] - ASBuildTimeStamps[0]) * device_limits.timestampPeriod / 1000000.0f;
+		float delta_in_ms_TLAS = float(ASBuildTimeStamps[3] - ASBuildTimeStamps[2]) * device_limits.timestampPeriod / 1000000.0f;
+#if defined(_WIN32)
+		std::cout << "\n*** AS Build Info BEGIN ***\n";
+		std::cout << "BLAS build time: " << delta_in_ms_BLAS << " (ms)\n";
+		std::cout << "TLAS build time: " << delta_in_ms_TLAS << " (ms)\n";
+		std::cout << "BLAS size: " << blasSize << " (Bytes)\n";
+		std::cout << "TLAS size: " << tlasSize << " (Bytes)\n";
+		std::cout << "*** AS Build Info END ***\n";
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+		LOGD("\n*** AS Build Info BEGIN ***\n");
+		LOGD("BLAS build time: %f (ms))\n", delta_in_ms_BLAS);
+		LOGD("TLAS build time: %f (ms))\n", delta_in_ms_TLAS);
+		LOGD("BLAS size: %llu (Bytes))\n", blasSize);
+		LOGD("TLAS size: %llu (Bytes))\n", tlasSize);
+		LOGD("*** AS Build Info END ***\n");
+#endif
+	}
+#endif
+
 	void computeGaussianEnclosingIcosaHedron()
 	{
 		// gaussianEnclosing pipeline
@@ -1365,11 +1458,6 @@ public:
 		VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
 
 		vkDeviceWaitIdle(device);
-
-		//gModel.positions.storageBuffer.destroy();
-		//gModel.rotations.storageBuffer.destroy();
-		//gModel.scales.storageBuffer.destroy();
-		//gModel.densities.storageBuffer.destroy();
 	}
 
 	void prepare()
@@ -1436,14 +1524,18 @@ public:
 		auto startTime = std::chrono::high_resolution_clock::now();
 		splitBLAS.init(vulkanDevice);
 		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
+		splitBLAS.initASBuildTimestamp(graphicsQueue);
 		splitBLAS.createAS(graphicsQueue);
 		auto      endTime = std::chrono::high_resolution_clock::now();
 		long long loadTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 		std::cout << "Time spent for Split BLAS " << loadTime << "ms" << std::endl;
 		std::cout << "*** Split BLAS END ***\n";
+		splitBLAS.printASBuildInfo(deviceProperties);
 #else
+		initASBuildTimestamp();
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
+		printASBuildInfo();
 #endif
 
 		// (2) Particle Rendering pass
@@ -1537,8 +1629,6 @@ public:
 	{
 		if (!prepared)
 			return;
-
-		//vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
 
 		draw();
 	}

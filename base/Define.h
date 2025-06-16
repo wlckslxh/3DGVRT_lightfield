@@ -17,9 +17,18 @@
 #define MEASURE_FRAME 2000
 #endif
 
+#define USE_TIME_BASED_FPS true
 /* cameras */
-#define QUATERNION_CAMERA true
+
+#define QUATERNION_CAMERA false
 #define LOAD_NERF_CAMERA true
+#define DYNAMIC_CAMERA true
+
+#if DYNAMIC_CAMERA
+#undef QUATERNION_CAMERA
+#define QUATERNION_CAMERA false
+#endif
+
 #define CAMERA_FILE "transforms_val.json"
 #define FOV_Y 39.6f
 #define NEAR_PLANE 0.005f
