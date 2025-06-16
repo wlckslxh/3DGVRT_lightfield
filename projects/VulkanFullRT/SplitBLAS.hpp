@@ -98,9 +98,16 @@ public:
 	vector<AccelerationStructure> splittedBLAS;
 	AccelerationStructure splittedTLAS;
 
+	VkQueryPool ASBuildTimeStampQueryPool;
+	std::vector<uint64_t> ASBuildTimeStamps;
+	VkDeviceSize blasSize = 0;
+	VkDeviceSize tlasSize = 0;
+
 	~SplitBLAS();
 	void init(vks::VulkanDevice* device);
 	void splitBlas(vks::Buffer& vertexBuffer, vks::Buffer& indexBuffer, VkQueue& queue);
 	void createAS(VkQueue& queue);
 	void rebuild(vks::Buffer& vertexBuffer, vks::Buffer& indexBuffer, VkQueue& queue);
+	void initASBuildTimestamp(VkQueue& queue);
+	void printASBuildInfo(VkPhysicalDeviceProperties deviceProperties);
 };

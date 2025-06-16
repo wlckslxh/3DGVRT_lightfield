@@ -111,6 +111,12 @@ public:
 #endif
 
 	const uint32_t timeStampCountPerFrame = 1;
+#if !SPLIT_BLAS
+	VkQueryPool ASBuildTimeStampQueryPool;
+	std::vector<uint64_t> ASBuildTimeStamps;
+	VkDeviceSize blasSize;
+	VkDeviceSize tlasSize;
+#endif
 
 #if LOAD_GLTF
 	// For Triangle Mesh (Should be renamed)
@@ -507,6 +513,7 @@ public:
 	}
 #endif
 
+#if !SPLIT_BLAS
 	void createBottomLevelAccelerationStructure3DGRT()
 	{
 		VkTransformMatrixKHR transformMatrix{};
@@ -582,14 +589,22 @@ public:
 		accelerationStructureBuildGeometryInfo.dstAccelerationStructure = bottomLevelAS3DGRT.handle;
 		accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
 
+		// BLAS Size
+		blasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
 		// Build the acceleration structure on the device via a one-time command buffer submission
 		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
 		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		// Timestamp 0: BLAS build start
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 0);
 		vkCmdBuildAccelerationStructuresKHR(
 			commandBuffer,
 			1,
 			&accelerationStructureBuildGeometryInfo,
 			&pBuildRangeInfo);
+
+		// Timestamp 1: BLAS build end
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 1);
 		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
 
 		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -686,14 +701,23 @@ public:
 		accelerationStructureBuildRangeInfo.transformOffset = 0;
 		VkAccelerationStructureBuildRangeInfoKHR* accelerationBuildStructureRangeInfo = &accelerationStructureBuildRangeInfo;
 
+		// TLAS size
+		tlasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
 		// Build the acceleration structure on the device via a one-time command buffer submission
 		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
 		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+		// Timestamp 2: TLAS build start
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 2);
 		vkCmdBuildAccelerationStructuresKHR(
 			commandBuffer,
 			1,
 			&accelerationBuildGeometryInfo,
 			&accelerationBuildStructureRangeInfo);
+
+		// Timestamp 3: TLAS build end
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 3);
 		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
 
 		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -703,6 +727,7 @@ public:
 		deleteScratchBuffer(scratchBuffer);
 		instancesBuffer.destroy();
 	}
+#endif
 
 #if !RAY_QUERY
 	/*
@@ -1376,6 +1401,47 @@ public:
 		return true;
 	}
 
+#if !SPLIT_BLAS
+	void initASBuildTimestamp()
+	{
+		ASBuildTimeStamps.resize(4);
+
+		VkQueryPoolCreateInfo queryPoolInfo{};
+		queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+		queryPoolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+		queryPoolInfo.queryCount = static_cast<uint32_t>(ASBuildTimeStamps.size());
+		VK_CHECK_RESULT(vkCreateQueryPool(device, &queryPoolInfo, nullptr, &ASBuildTimeStampQueryPool));
+
+		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		vkCmdResetQueryPool(commandBuffer, ASBuildTimeStampQueryPool, 0, static_cast<uint32_t>(ASBuildTimeStamps.size()));
+		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
+	}
+
+	void printASBuildInfo()
+	{
+		vkGetQueryPoolResults(device, ASBuildTimeStampQueryPool, 0, ASBuildTimeStamps.size(), ASBuildTimeStamps.size() * sizeof(uint64_t), ASBuildTimeStamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+
+		VkPhysicalDeviceLimits device_limits = deviceProperties.limits;
+		float delta_in_ms_BLAS = float(ASBuildTimeStamps[1] - ASBuildTimeStamps[0]) * device_limits.timestampPeriod / 1000000.0f;
+		float delta_in_ms_TLAS = float(ASBuildTimeStamps[3] - ASBuildTimeStamps[2]) * device_limits.timestampPeriod / 1000000.0f;
+#if defined(_WIN32)
+		std::cout << "\n*** AS Build Info BEGIN ***\n";
+		std::cout << "BLAS build time: " << delta_in_ms_BLAS << " (ms)\n";
+		std::cout << "TLAS build time: " << delta_in_ms_TLAS << " (ms)\n";
+		std::cout << "BLAS size: " << blasSize << " (Bytes)\n";
+		std::cout << "TLAS size: " << tlasSize << " (Bytes)\n";
+		std::cout << "*** AS Build Info END ***\n";
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+		LOGD("\n*** AS Build Info BEGIN ***\n");
+		LOGD("BLAS build time: %f (ms))\n", delta_in_ms_BLAS);
+		LOGD("TLAS build time: %f (ms))\n", delta_in_ms_TLAS);
+		LOGD("BLAS size: %llu (Bytes))\n", blasSize);
+		LOGD("TLAS size: %llu (Bytes))\n", tlasSize);
+		LOGD("*** AS Build Info END ***\n");
+#endif
+	}
+#endif
+
 	void computeGaussianEnclosingIcosaHedron()
 	{
 		// gaussianEnclosing pipeline
@@ -1387,11 +1453,6 @@ public:
 		VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
 
 		vkDeviceWaitIdle(device);
-
-		//gModel.positions.storageBuffer.destroy();
-		//gModel.rotations.storageBuffer.destroy();
-		//gModel.scales.storageBuffer.destroy();
-		//gModel.densities.storageBuffer.destroy();
 	}
 
 	void prepare()
@@ -1458,14 +1519,18 @@ public:
 		auto startTime = std::chrono::high_resolution_clock::now();
 		splitBLAS.init(vulkanDevice);
 		splitBLAS.splitBlas(gModel.vertices.storageBuffer, gModel.indices.storageBuffer, graphicsQueue);
+		splitBLAS.initASBuildTimestamp(graphicsQueue);
 		splitBLAS.createAS(graphicsQueue);
 		auto      endTime = std::chrono::high_resolution_clock::now();
 		long long loadTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 		std::cout << "Time spent for Split BLAS " << loadTime << "ms" << std::endl;
 		std::cout << "*** Split BLAS END ***\n";
+		splitBLAS.printASBuildInfo(deviceProperties);
 #else
+		initASBuildTimestamp();
 		createBottomLevelAccelerationStructure3DGRT();
 		createTopLevelAccelerationStructure3DGRT();
+		printASBuildInfo();
 #endif
 
 		// (2) Particle Rendering pass

@@ -471,12 +471,20 @@ void SplitBLAS::createBLAS(int cellIdx, VkQueue& queue) {
 	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = splittedBLAS[cellIdx].handle;
 	accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
 
+	// BLAS Size
+	blasSize += accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
 	VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+	// Timestamp: BLAS build start
+	vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 2 * cellIdx);
 	vkCmdBuildAccelerationStructuresKHR(
 		commandBuffer,
 		1,
 		&accelerationStructureBuildGeometryInfo,
 		&pBuildRangeInfo);
+	// Timestamp: BLAS build end
+	vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 2 * cellIdx + 1);
 	vulkanDevice->flushCommandBuffer(commandBuffer, queue);
 
 	VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -583,12 +591,20 @@ void SplitBLAS::createTLAS(VkQueue& queue) {
 	accelerationStructureBuildRangeInfo.transformOffset = 0;
 	vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
 
+	// TLAS size
+	tlasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
 	VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+	// Timestamp: TLAS build start
+	vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, ASBuildTimeStamps.size() - 2);
 	vkCmdBuildAccelerationStructuresKHR(
 		commandBuffer,
 		1,
 		&accelerationBuildGeometryInfo,
 		accelerationBuildStructureRangeInfos.data());
+	// Timestamp: TLAS build end
+	vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, ASBuildTimeStampQueryPool, ASBuildTimeStamps.size() - 1);
 	vulkanDevice->flushCommandBuffer(commandBuffer, queue);
 
 	VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
@@ -691,4 +707,46 @@ void SplitBLAS::rebuild(vks::Buffer& vertexBuffer, vks::Buffer& indexBuffer, VkQ
 	destroyAS();
 	splitBlas(vertexBuffer, indexBuffer, queue);
 	createAS(queue);
+}
+
+void SplitBLAS::initASBuildTimestamp(VkQueue& queue)
+{
+	ASBuildTimeStamps.resize(d_splittedIndices.size() * 2 + 2);
+
+	VkQueryPoolCreateInfo queryPoolInfo{};
+	queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+	queryPoolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+	queryPoolInfo.queryCount = static_cast<uint32_t>(ASBuildTimeStamps.size());
+	VK_CHECK_RESULT(vkCreateQueryPool(vulkanDevice->logicalDevice, &queryPoolInfo, nullptr, &ASBuildTimeStampQueryPool));
+
+	VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+	vkCmdResetQueryPool(commandBuffer, ASBuildTimeStampQueryPool, 0, static_cast<uint32_t>(ASBuildTimeStamps.size()));
+	vulkanDevice->flushCommandBuffer(commandBuffer, queue);
+}
+
+void SplitBLAS::printASBuildInfo(VkPhysicalDeviceProperties deviceProperties)
+{
+	vkGetQueryPoolResults(vulkanDevice->logicalDevice, ASBuildTimeStampQueryPool, 0, ASBuildTimeStamps.size(), ASBuildTimeStamps.size() * sizeof(uint64_t), ASBuildTimeStamps.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+
+	VkPhysicalDeviceLimits device_limits = deviceProperties.limits;
+	float delta_in_ms_BLAS = 0.0f;
+	for (int i = 0; i < d_splittedIndices.size(); i++)
+		delta_in_ms_BLAS += float(ASBuildTimeStamps[i * 2 + 1] - ASBuildTimeStamps[i * 2]);
+	delta_in_ms_BLAS *= device_limits.timestampPeriod / 1000000.0f;
+	float delta_in_ms_TLAS = float(ASBuildTimeStamps[ASBuildTimeStamps.size() - 1] - ASBuildTimeStamps[ASBuildTimeStamps.size() - 2]) * device_limits.timestampPeriod / 1000000.0f;
+#if defined(_WIN32)
+	std::cout << "\n*** AS Build Info BEGIN ***\n";
+	std::cout << "BLAS build time: " << delta_in_ms_BLAS << " (ms)\n";
+	std::cout << "TLAS build time: " << delta_in_ms_TLAS << " (ms)\n";
+	std::cout << "BLAS size: " << blasSize << " (Bytes)\n";
+	std::cout << "TLAS size: " << tlasSize << " (Bytes)\n";
+	std::cout << "*** AS Build Info END ***\n";
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+	LOGD("\n*** AS Build Info BEGIN ***\n");
+	LOGD("BLAS build time: %f (ms))\n", delta_in_ms_BLAS);
+	LOGD("TLAS build time: %f (ms))\n", delta_in_ms_TLAS);
+	LOGD("BLAS size: %llu (Bytes))\n", blasSize);
+	LOGD("TLAS size: %llu (Bytes))\n", tlasSize);
+	LOGD("*** AS Build Info END ***\n");
+#endif
 }

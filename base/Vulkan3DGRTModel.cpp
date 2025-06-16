@@ -114,7 +114,7 @@ namespace vk3DGRT {
 		{
 			auto      endTime = std::chrono::high_resolution_clock::now();
 			long long loadTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-			std::cout << "File loaded in " << loadTime << "ms" << std::endl;
+			std::cout << "\nFile loaded in " << loadTime << "ms" << std::endl;
 		}
 		else
 		{
@@ -147,7 +147,6 @@ namespace vk3DGRT {
 			{
 				PLYLoader plyLoader;
 				plyLoader.loadPLYModel(filename.c_str(), splatSet);
-				std::cout << "done" << std::endl;
 			}
 			else
 			{
