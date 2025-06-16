@@ -17,6 +17,7 @@
 #define MEASURE_FRAME 2000
 #endif
 
+#define USE_TIME_BASED_FPS true
 /* cameras */
 
 #define QUATERNION_CAMERA false

@@ -1523,8 +1523,6 @@ public:
 		if (!prepared)
 			return;
 
-		//vks::utils::updateLightDynamicInfo(uniformData, scene, timer);
-
 		draw();
 	}
 };
