@@ -137,13 +137,16 @@ void main()
 
 	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
 
-//	const uint iterations = ITERATIONS;
-//	uint iter = 0;
+	const uint iterations = ITERATIONS;
+	uint iter = 0;
 	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance)){
+		iter++;
 
 		// Gather k hits
 		trace(rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
 		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
+		 imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(1.0f, 0.0f, 0.0f, 1.0f));
+		 return;
 			break;
 		}
 

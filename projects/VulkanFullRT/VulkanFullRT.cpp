@@ -1598,8 +1598,18 @@ public:
 #endif
 
 #if ENABLE_HIT_COUNTS && !RAY_QUERY
-		vkQueueWaitIdle(graphicsQueue);
-		printRayHitCounts(currentFrame);
+		static unsigned int frame = 0;
+		static bool flag = true;
+		if (frame == 100 && flag) {
+			vkQueueWaitIdle(graphicsQueue);
+			printRayHitCounts(currentFrame);
+
+			std::cout << "*** Ray hit counts END ***\n";
+			flag = false;
+		}
+		else if (frame < 100) {
+			frame++;
+		}
 #endif
 	}
 
@@ -1610,17 +1620,13 @@ public:
 
 		FILE* fp = fopen("../results/texts/rayHitCountsOutput.txt", "w");
 		if (fp) {
-			for (size_t i = 0; i < width * height; ++i) {
-				fprintf(fp, "%u\n", uintData[i]);
-				//fprintf(fp, "%u\n", 1);
-				for (size_t i = 0; i < height; ++i) {
-					for (size_t j = 0; j < width; ++j) {
-						fprintf(fp, "%u ", uintData[i * height + j]);
-					}
-					fprintf(fp, "\n");
+			for (size_t i = 0; i < height; ++i) {
+				for (size_t j = 0; j < width; ++j) {
+					fprintf(fp, "%u ", uintData[i * width + j]);
 				}
-				fclose(fp);
+				fprintf(fp, "\n");
 			}
+			fclose(fp);
 		}
 	}
 #endif
