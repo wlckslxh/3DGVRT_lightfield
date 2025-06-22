@@ -1604,7 +1604,7 @@ public:
 			vkQueueWaitIdle(graphicsQueue);
 			printRayHitCounts(currentFrame);
 
-			std::cout << "*** Ray hit counts END ***\n";
+			std::cout << "\n*** Ray hit counts END ***\n";
 			flag = false;
 		}
 		else if (frame < 100) {

@@ -20,9 +20,9 @@
 #define USE_TIME_BASED_FPS true
 /* cameras */
 
-#define QUATERNION_CAMERA false
+#define QUATERNION_CAMERA true
 #define LOAD_NERF_CAMERA true
-#define DYNAMIC_CAMERA true
+#define DYNAMIC_CAMERA false
 
 #if DYNAMIC_CAMERA
 #undef QUATERNION_CAMERA
@@ -43,7 +43,7 @@
 
  // ---------- split blas ---------- //
 #define SPLIT_BLAS 1		// This macro should be managed with 3dgs.glsl
-#define NUMBER_OF_CELLS_PER_LONGEST_AXIS 20
+#define NUMBER_OF_CELLS_PER_LONGEST_AXIS 10
 #define SCENE_EPSILON 1e-4f
 #define ONE_VERTEX_BUFFER false
 
