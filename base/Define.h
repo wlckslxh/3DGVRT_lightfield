@@ -20,8 +20,8 @@
 #define USE_TIME_BASED_FPS true
 /* cameras */
 
-#define QUATERNION_CAMERA true
-#define LOAD_NERF_CAMERA true
+#define QUATERNION_CAMERA false
+#define LOAD_NERF_CAMERA false
 #define DYNAMIC_CAMERA false
 
 #if DYNAMIC_CAMERA
@@ -65,7 +65,7 @@
 
 #if ASSET == 0
 #define ASSET_PATH "3DGRTModels/lego/"
-#define PLY_FILE "lego.ply"
+#define PLY_FILE "lego_3dgrt.ply"
 
 #elif ASSET == 1
 #define ASSET_PATH "3DGRTModels/bonsai/"
@@ -75,7 +75,7 @@
 
 #elif ASSET == 2
 #define ASSET_PATH "3DGRTModels/chair/"
-#define PLY_FILE "chair.ply"
+#define PLY_FILE "chair_3dgrt.ply"
 
 #elif ASSET == 3
 #define ASSET_PATH "3DGRTModels/hotdog/"

@@ -4012,16 +4012,16 @@ void VulkanRTBase::setCamera(uint32_t camIdx)
 #elif ASSET == 3
 	switch (camIdx) {
 	case 0:
-		camera.setTranslation(glm::vec3(99.663498, -150.709137, 50.054539));
-		camera.setRotation(glm::vec3(-14.949973, 393.002319, 0.000000));
+		camera.setTranslation(glm::vec3(2.342167, -2.793516, 2.678495));
+		camera.setRotation(glm::vec3(-38.874973, 395.777435, 0.000000));
 		break;
 	case 1:
-		camera.setTranslation(glm::vec3(-0.032561, 3.701800, 3.788660));
-		camera.setRotation(glm::vec3(-43.374847, 175.450668, 0.000000));
+		camera.setTranslation(glm::vec3(3.004905, 2.292550, 3.581825));
+		camera.setRotation(glm::vec3(-40.999966, 481.652527, 0.000000));
 		break;
 	case 2:
-		camera.setTranslation(glm::vec3(0.003964, 1.457728, -2.351941));
-		camera.setRotation(glm::vec3(-19.874851, 180.675659, 0.000000));
+		camera.setTranslation(glm::vec3(0.869630, 0.414600, 4.604039));
+		camera.setRotation(glm::vec3(-78.499985, 477.702576, 0.000000));
 		break;
 	}
 #endif
