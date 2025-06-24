@@ -9,10 +9,10 @@ It's still being prepared. 😘 <br/>
 
 ## 🎠 Build
 ```
-1. Clone this repository.
-2. Copy the 'assets' folder to your cloned root.
-3. Make build system using cmake.
-4. Build using Visual Studio IDE.
+1. Clone this repository or download zip file.
+2. Make build system using cmake and select Visual Studio for IDE.
+3. Set as startup project 'VulkanFullRT'
+4. Build and Run!
 ```
 
 ## 📷 Camera Interface
