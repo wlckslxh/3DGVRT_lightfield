@@ -250,3 +250,6 @@ misc.xml
 
 # IntelliJ
 .idea/
+
+# Ignore todo file
+todo.txt
