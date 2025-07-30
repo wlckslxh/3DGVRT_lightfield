@@ -1760,8 +1760,8 @@ void VulkanRTBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 #endif
 				break;
 			case KEY_R:
-				camera.setRotation(glm::vec3(-3.199999, -88.599998, 0.000000));
-				camera.setTranslation(glm::vec3(-4.211443, 1.331187, -0.232099));
+				camera.setRotation(glm::vec3(-90, 0, 0.000000));
+				camera.setTranslation(glm::vec3(0.000989, -0.088882, 5));
 				break;			
 #if QUATERNION_CAMERA
 			case KEY_E:

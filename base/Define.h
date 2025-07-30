@@ -16,7 +16,7 @@
 #define START_FRAME 2000
 #define MEASURE_FRAME 2000
 #endif
-
+#define _VALIDATION
 #define USE_TIME_BASED_FPS true
 /* cameras */
 
@@ -42,7 +42,7 @@
 #define LOAD_GLTF 0
 
  // ---------- split blas ---------- //
-#define SPLIT_BLAS 1		// This macro should be managed with 3dgs.glsl
+#define SPLIT_BLAS 0		// This macro should be managed with 3dgs.glsl
 #define NUMBER_OF_CELLS_PER_LONGEST_AXIS 10
 #define SCENE_EPSILON 1e-4f
 #define ONE_VERTEX_BUFFER false
@@ -56,12 +56,15 @@
 #define TIMER_CORRECTION 1
 #define TEXTURE_COMPRESSION 0
 #define ENABLE_HIT_COUNTS 0	// Should be managed with 3dgs.glsl. Only use when the RAY_QUERY is 0.
-#define EVAL_QUALITY 0
+#define EVAL_QUALITY 1
 
 #define USE_ANIMATION 0 // 0 is Default
 
 #define N_IS_UP		// Should be managed with 3DGRT Asset Num.
 //#define Y_IS_UP
+
+// ---------- gaussian light field ---------- //
+#define GAUSSIAN_LIGHT_FIELD 1
 
 #if ASSET == 0
 #define ASSET_PATH "3DGRTModels/lego/"
