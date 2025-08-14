@@ -1593,7 +1593,7 @@ public:
 		
 		//testing camera. this is at (x+R, y, z), where (x, y, z) is center position of guassian object and camera is looking for.
 		
-		glm::mat4 persMat = glm::perspective_Vulkan_no_depth_reverse(90.0f, (float)(width / height), NEAR_PLANE, FAR_PLANE);
+		glm::mat4 persMat = glm::perspective_Vulkan_no_depth_reverse(glm::radians(135.0f), (float)(width / height), NEAR_PLANE, FAR_PLANE);
 		//method using Camera class in camera.hpp
 		/*Camera camera;
 		camera.setPosition(cameraPos);
