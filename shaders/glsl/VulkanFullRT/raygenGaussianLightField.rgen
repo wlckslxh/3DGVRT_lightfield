@@ -1,0 +1,202 @@
+/*
+ * Sogang Univ, Graphics Lab, 2024
+ * 
+ * Abura Soba, 2025
+ * 
+ * Jichan, 2025
+ *
+ * Gaussian Light Field
+ *
+ * Ray generation shader
+ */
+
+#version 460
+#extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_scalar_block_layout : require
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+#include "../base/light.glsl"
+#include "../base/3dgs.glsl"
+#include "../base/utils.glsl"
+#include "../base/define.glsl"
+
+/*** playground style ***/
+//struct RayData{
+//	vec3 radiance;
+//	float density;
+//	vec3 normal;
+//	float hitDistance;
+//	float rayLastHitDistance;
+//	uint hitCount;
+//
+//	void initialize(){
+//		radiance = vec3(0.0f);
+//		density = 0.0f;
+//		normal = vec3(0.0f);
+//		hitDistance = 0.0f;
+//		rayLastHitDistance = 0.0f;
+//		hitCount = 0;
+//	}
+//}
+
+/***** 3DGS *****/
+layout(location = 0) rayPayloadEXT RayPayload rayPayload;
+
+// Initialized with default value. Appropriate value will be transfered from application.
+layout(constant_id = 0) const uint numOfLights = 1;	
+layout(constant_id = 1) const uint numOfDynamicLights = 1;
+layout(constant_id = 2) const uint numOfStaticLights = 1;
+layout(constant_id = 3) const uint staticLightOffset = 1;
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 1, set = 0, rgba8) uniform image2DArray image;
+layout(binding = 2, set = 0) uniform uniformBufferStatic
+{
+	Aabb aabb;
+	float minTransmittance;
+	mat4 projInverse;
+	float hitMinGaussianResponse;
+	uint sphEvalDegree;
+} uboStatic;
+layout(std430, binding = 3, set = 0) buffer ViewInverseBlock {
+	mat4 viewInverse[];
+} viewInverseBlock;
+layout(std140, binding = 4, set = 0) buffer RayDirsBlock {
+	vec4 rayDirs[];
+} rayDirsBlock;
+#if !BUFFER_REFERENCE
+layout(std140, binding = 5, set = 0) buffer ParticleDensities {
+	ParticleDensity d[];
+} particleDensities;
+layout(std430, binding = 6, set = 0) buffer ParticleSphCoefficients {
+	float c[];
+} particleSphCoefficients;	// [features_albedo(vec3), features_specular(float)]. uboStatic.particleRadiance
+#endif
+
+#if ENABLE_HIT_COUNTS
+layout(std430, binding = 7, set = 0) buffer RayHitCounts {
+	uint cnts[];
+} rayHitCounts;
+#endif
+
+#include "../base/gaussianfunctions.glsl"
+
+/***** 3DGS Functions *****/
+//void traceVolumetricGS(vec3 rayOrigin, vec3 rayDirection, float tmin, float tmax){
+//	//check image range (why here?)
+//	const vec2 idx = vec2(gl_LaunchIDEXT.xy);
+//	if(idx.x > frameBounds.x) || (idx.y > frameBounds.y)){
+//		return;
+//	}
+//}
+//
+//vec4 traceGaussians(vec3 rayOrigin, vec3 rayDirection, const float tmin, const float tmax){
+//	traceVolumetricGS(rayOrigin, rayDirection, tmin, tmax);
+//
+//	return accumulated_radiance;
+//}
+
+/*** 3dgrt style ***/
+void initializeRayPayload(){
+	for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+		rayPayload.hits[i].particleId = INVALID_PARTICLE_ID;
+		rayPayload.hits[i].dist = INFINITE_DISTANCE;
+	}
+}
+
+void trace(vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
+	initializeRayPayload();
+	traceRayEXT(topLevelAS, gl_RayFlagsSkipClosestHitShaderEXT | gl_RayFlagsCullBackFacingTrianglesEXT, 0xff, 0, 0, 0, rayOri, tmin, rayDir, tmax, 0);
+}
+
+void main()
+{
+	// set ray origin, direction
+	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.yz) + vec2(0.5);	// pixel position
+	const uint height = gl_LaunchSizeEXT.y;
+	const uint width = gl_LaunchSizeEXT.z;
+	const vec2 inUV = pixelCenter/vec2(height, width);	// pixel position in WdC
+	const uint cameraNum = gl_LaunchIDEXT.x;
+	
+	vec2 d = inUV * 2.0 - 1.0;	// pixel position in NDC
+	mat4 viewM = viewInverseBlock.viewInverse[cameraNum];
+	vec4 target = uboStatic.projInverse * vec4(d.x, d.y, 1.0f, 1.0f) ;	// (pixel position in EC) / Wc
+	
+	vec4 rayOrigin = viewM[3];
+	vec4 rayDirection = normalize(viewM * vec4(target.xyz, 0.0f));
+	rayDirsBlock.rayDirs[cameraNum * height * width + gl_LaunchIDEXT.y * width + gl_LaunchIDEXT.z] = rayDirection;
+	
+
+	/*** 3dgrt style ***/
+	vec4 rayRadiance = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	float rayTransmittance = 1.0f;
+	float rayHitDistance = 0.0f;
+
+#ifdef ENABLE_NORMALS
+	vec3 rayNormal = vec3(0.0f);
+#endif
+#if ENABLE_HIT_COUNTS
+	uint hitCnts = 0;
+#endif
+
+	vec2 minMaxT = intersectAABB(uboStatic.aabb, rayOrigin.xyz, rayDirection.xyz);
+	const float epsT = EPS_T;
+
+	float rayLastHitDistance = max(0.0f, minMaxT.x - epsT);
+
+	const uint iterations = ITERATIONS;
+	uint iter = 0;
+	while((rayLastHitDistance <= minMaxT.y) && (rayTransmittance > uboStatic.minTransmittance)){
+		iter++;
+
+		// Gather k hits
+		trace(rayOrigin.xyz, rayDirection.xyz, rayLastHitDistance + epsT, minMaxT.y + epsT);
+		if(rayPayload.hits[0].particleId == INVALID_PARTICLE_ID){
+			break;
+		}
+
+		// Process k hits
+        for(int i = 0; i < MAX_HIT_PER_TRACE; i++){
+			const RayHit rayHit = rayPayload.hits[nonuniformEXT(i)];
+
+			if((rayHit.particleId != INVALID_PARTICLE_ID) && (rayTransmittance > uboStatic.minTransmittance)){
+				const bool acceptedHit = processHit(
+					rayOrigin.xyz,
+					rayDirection.xyz,
+					rayHit.particleId,
+#if BUFFER_REFERENCE
+					uboStatic.densityBufferDeviceAddress,
+					uboStatic.sphCoefficientBufferDeviceAddress,
+#endif
+					uboStatic.hitMinGaussianResponse,
+					ALPHA_MIN_THRESHOLD,
+					uboStatic.sphEvalDegree,
+					rayTransmittance,
+					rayRadiance,
+					rayHitDistance
+#if ENABLE_NORMALS
+					,rayNormal
+#endif
+				);
+
+				rayLastHitDistance = max(rayLastHitDistance, rayHit.dist);
+
+#if ENABLE_HIT_COUNTS
+				hitCnts += acceptedHit ? 1 : 0;
+#endif
+			}
+		}
+	}
+	//rayRadiance = vec4(0.0, 1.0, 0.0, 1.0);
+    imageStore(image, ivec3(gl_LaunchIDEXT.y, gl_LaunchIDEXT.z, cameraNum), rayRadiance);
+//	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayHitDistance / 10.0f, rayHitDistance / 10.0f, rayHitDistance / 10.0f, 1.0f));
+
+#if ENABLE_HIT_COUNTS
+	rayHitCounts.cnts[gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x] = hitCnts;
+#endif
+
+	/*** playground style ***/
+//	vec4 volumetricRadDns = traceGaussians(rayOrigin, rayDirection, EPS_T, ray_t_max);
+}

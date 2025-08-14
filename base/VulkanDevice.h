@@ -99,6 +99,7 @@ struct VulkanDevice
 	void copyBuffer(vks::Buffer* src, vks::Buffer* dst, VkQueue queue, VkCommandBufferUsageFlagBits flags, VkBufferCopy* copyRegion = nullptr);
 	void copyBuffer(void* data, vks::Buffer* dst, VkQueue queue, VkBufferCopy* copyRegion = nullptr);
 	void copyImageToBuffer(VkImage srcImg, vks::Buffer dstBuf, VkQueue queue, VkImageLayout imgLayout, uint32_t width, uint32_t height);
+	void copyImagesToBuffer(VkImage srcImg, vks::Buffer dstBuf, VkQueue queue, VkImageLayout imgLayout, uint32_t width, uint32_t height, uint32_t layers);
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, VkCommandPool pool, bool begin, VkCommandBufferUsageFlagBits flags);
 	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool begin, VkCommandBufferUsageFlagBits flags);
 

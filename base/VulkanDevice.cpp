@@ -567,6 +567,48 @@ namespace vks
 		flushCommandBuffer(copyCmdBuf, queue, true);
 	}
 
+	void VulkanDevice::copyImagesToBuffer(VkImage srcImg, vks::Buffer dstBuf, VkQueue queue, VkImageLayout imgLayout, uint32_t width, uint32_t height, uint32_t layers)
+	{
+		VkCommandBuffer copyCmdBuf = createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, layers };
+		
+		vks::tools::setImageLayout(
+			copyCmdBuf,
+			srcImg,
+			imgLayout,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			subresourceRange);
+		
+		for (uint32_t layer = 0; layer < layers; layer++) {
+			VkBufferImageCopy bufferImageCopy{};
+			bufferImageCopy.bufferOffset = layer * width * height * 4;
+			bufferImageCopy.bufferRowLength = 0;
+			bufferImageCopy.bufferImageHeight = 0;
+			bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			bufferImageCopy.imageSubresource.mipLevel = 0;
+			bufferImageCopy.imageSubresource.baseArrayLayer = layer;
+			bufferImageCopy.imageSubresource.layerCount = 1;
+			bufferImageCopy.imageOffset = { 0, 0, 0 };
+			bufferImageCopy.imageExtent = { width, height, 1 };
+			
+			vkCmdCopyImageToBuffer(copyCmdBuf, srcImg,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				dstBuf.buffer,
+				1,
+				&bufferImageCopy);
+		}
+		
+		vks::tools::setImageLayout(
+			copyCmdBuf,
+			srcImg,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			imgLayout,
+			subresourceRange);
+
+		//여기서 에러 발생
+		flushCommandBuffer(copyCmdBuf, queue, true);
+	}
+
 	/** 
 	* Create a command pool for allocation command buffers from
 	* 
