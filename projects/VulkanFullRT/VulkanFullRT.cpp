@@ -150,6 +150,11 @@ public:
 #endif
 
 #if GAUSSIAN_LIGHT_FIELD
+	struct GaussianSampledSphere {
+		alignas(16) glm::vec3 center;
+		float radius;
+	};
+
 	struct GaussianLightField {
 		VkPipeline pipeline{ VK_NULL_HANDLE };
 		VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
@@ -160,6 +165,7 @@ public:
 		vks::Buffer uniformBufferStatic;
 		vks::Buffer viewInverseBuffer;
 		vks::Buffer rayDirBuffer;
+		vks::Buffer rayPosBuffer;
 		VkCommandBuffer commandBuffer{ VK_NULL_HANDLE };
 
 		VkImage image;
@@ -190,7 +196,22 @@ public:
 #endif
 		}uniformDataStatic;
 		vector<glm::mat4> viewInverse;
+
+		//for ray tracing sampled sphere
+		VkAabbPositionsKHR gaussianSampledSphereAABB;
+		vks::Buffer gaussianSampledSphereBuffer;
+		vks::Buffer aabbBuffer;
+		GaussianSampledSphere gaussianSampledSphere;
+		AccelerationStructure gaussianSampledBLAS{};
+		AccelerationStructure gaussianSampledTLAS{};
 	} gaussianLightField;
+
+	struct Triangle {
+		glm::vec3 v1, v2, v3;
+		Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c)
+			: v1(a), v2(b), v3(c) {
+		}
+	};
 #endif
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -881,8 +902,12 @@ public:
 		};
 		VkSpecializationInfo specializationInfo = vks::initializers::specializationInfo(static_cast<uint32_t>(specializationMapEntries.size()), specializationMapEntries.data(), sizeof(SpecializationData), &specializationData);
 
+#if GAUSSIAN_LIGHT_FIELD
+		VkDescriptorSetLayout setLayouts[2] = { descriptorSetLayout, gaussianLightField.descriptorSetLayout };
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(setLayouts, 2);
+#else
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
+#endif
 		// For transfer push constants
 		VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_RAYGEN_BIT_KHR, sizeof(pushConstants), 0);
 		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
@@ -940,6 +965,23 @@ public:
 			shaderGroup.anyHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
 			shaderGroups.push_back(shaderGroup);
 		}
+
+#if GAUSSIAN_LIGHT_FIELD
+		// Closest hit group 1 : Gaussian Sampled Sphere
+		{
+			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "sphere.rint.spv", VK_SHADER_STAGE_INTERSECTION_BIT_KHR));
+			shaderStages.push_back(loadShader(getShadersPath() + DIR_PATH + "sphere.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+			VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
+			shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+			shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+			shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
+			shaderGroup.closestHitShader = static_cast<uint32_t>(shaderStages.size() - 1);
+			shaderGroup.intersectionShader = static_cast<uint32_t>(shaderStages.size() - 2);
+			shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+			shaderGroups.push_back(shaderGroup);
+		}
+#endif
+
 		/*
 			Create the ray tracing pipeline
 		*/
@@ -969,9 +1011,18 @@ public:
 #if ENABLE_HIT_COUNTS && !RAY_QUERY
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 * swapChain.imageCount),
 #endif
+#if GAUSSIAN_LIGHT_FIELD
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 * swapChain.imageCount),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, gaussianLightField.samplingCameraNum),
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * swapChain.imageCount), //gaussian sampled sphere
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2), //sampling rays and smpling positions
+#endif
 		};
+#if GAUSSIAN_LIGHT_FIELD
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount + 1); // gaussianEnclosing pipeline + ray tracing pipeline + global descriptor for sampled gaussian light field
+#else
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, swapChain.imageCount); // gaussianEnclosing pipeline + ray tracing pipeline
-
+#endif
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &descriptorPool));	// descriptor pool
 		
 		// for ray tracing pipeline begin
@@ -1002,13 +1053,19 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
 			// Binding 5: Storage buffer - Particle Sph Coefficients
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
-#if SPLIT_BLAS && !RAY_QUERY
+	#if SPLIT_BLAS && !RAY_QUERY
 			// Binding 6: Storage buffer - primitive Id
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 6),
 	#endif
 	#if ENABLE_HIT_COUNTS
 			// Binding 7: Storage buffer - Ray Hit Count for debugging
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 7),
+	#endif
+	#if GAUSSIAN_LIGHT_FIELD
+			// Binding 8: Sampled Sphere AS
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 8),
+			// Binding 9 : Storage buffer - Sampled Sphere
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 9),
 	#endif
 #endif
 		};
@@ -1042,6 +1099,20 @@ public:
 
 			VkDescriptorImageInfo storageImageDescriptor = { VK_NULL_HANDLE, swapChain.buffers[frame.imageIndex].view, VK_IMAGE_LAYOUT_GENERAL };
 
+#if GAUSSIAN_LIGHT_FIELD
+			VkWriteDescriptorSetAccelerationStructureKHR sampledASInfo = vks::initializers::writeDescriptorSetAccelerationStructureKHR();
+			sampledASInfo.accelerationStructureCount = 1;
+			sampledASInfo.pAccelerationStructures = &gaussianLightField.gaussianSampledTLAS.handle;
+
+			VkWriteDescriptorSet sampledASWrite{};
+			sampledASWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			sampledASWrite.pNext = &sampledASInfo;
+			sampledASWrite.dstSet = descriptorSet;
+			sampledASWrite.dstBinding = 8;
+			sampledASWrite.descriptorCount = 1;
+			sampledASWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+#endif
+
 			std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 				// Binding 0: Top level acceleration structure
 				accelerationStructureWrite,
@@ -1059,11 +1130,42 @@ public:
 #if ENABLE_HIT_COUNTS && !RAY_QUERY
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7, &frame.hitCountsbuffer.descriptor),
 #endif
+#if GAUSSIAN_LIGHT_FIELD
+				sampledASWrite,
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 9, &gaussianLightField.gaussianSampledSphereBuffer.descriptor),
+#endif
 			};
 
 			vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 		}
 		// for ray tracing pipeline end
+#if GAUSSIAN_LIGHT_FIELD
+		// adding descriptor for sampled data
+		std::vector<VkDescriptorSetLayoutBinding> sampledSetLayoutBindings = {
+			// Binding 0 : Sampled image
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 0),
+			// Binding 1 : Sampled ray dir
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 1),
+			// Binding 2 : Sampled camera position
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 2),
+		};
+
+		VkDescriptorSetLayoutCreateInfo sampledDescriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(sampledSetLayoutBindings);
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &sampledDescriptorSetLayoutCI, nullptr, &gaussianLightField.descriptorSetLayout));
+
+		VkDescriptorSetAllocateInfo sampledSetAllocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &gaussianLightField.descriptorSetLayout, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &sampledSetAllocInfo, &gaussianLightField.descriptorSet));
+
+		VkDescriptorImageInfo storageImageDescriptor = { VK_NULL_HANDLE, gaussianLightField.imageView, VK_IMAGE_LAYOUT_GENERAL };
+
+		std::vector<VkWriteDescriptorSet> sampledWriteDescriptorSets = {
+			vks::initializers::writeDescriptorSet(gaussianLightField.descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0, &storageImageDescriptor),
+			vks::initializers::writeDescriptorSet(gaussianLightField.descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &gaussianLightField.rayDirBuffer.descriptor),
+			vks::initializers::writeDescriptorSet(gaussianLightField.descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &gaussianLightField.rayPosBuffer.descriptor), // I need buffer for sampling camera positions
+		};
+
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(sampledWriteDescriptorSets.size()), sampledWriteDescriptorSets.data(), 0, VK_NULL_HANDLE);
+#endif
 	}
 
 	/*
@@ -1204,6 +1306,9 @@ public:
 #else
 		vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
+#if GAUSSIAN_LIGHT_FIELD
+		vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 1, 1, &gaussianLightField.descriptorSet, 0, 0);
+#endif
 		vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 #endif
 
@@ -1267,6 +1372,9 @@ public:
 #else
 			vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 			vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 0, 1, &frame.descriptorSet, 0, 0);
+#if GAUSSIAN_LIGHT_FIELD
+			vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, 1, 1, &gaussianLightField.descriptorSet, 0, 0);
+#endif
 			vkCmdPushConstants(frame.commandBuffer, pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(pushConstants), &pushConstants);
 #endif
 
@@ -1521,8 +1629,6 @@ public:
 		unsigned int width = gaussianLightField.sampleImageWidth;
 		unsigned int height = gaussianLightField.sampleImageHeight;
 		unsigned int raysNum = width * height;
-
-		gaussianLightField.viewInverse.resize(cameraNum);
 		
 		float minX, minY, minZ, maxX, maxY, maxZ;
 		minX = minY = minZ = FLT_MAX;
@@ -1543,55 +1649,80 @@ public:
 			if (z > maxZ) maxZ = z;
 		}
 
-		// 이걸 구형으로 할지 박스형으로 할지 아니면 4d image plane으로 할지 고민중...
-		// 일단 구형으로 하는건 확정인데, 이걸 gpt가 추천해준 버전을 쓸지, github에서 찾은 버전을 쓸지 고민중...
-		// 확인해본 결과 linear interpolation 하려면 gpt가 추천해준 버전이 격자형에 더 가까워서 계산이나 구현 면에서 문제가 없을거라 생각함.
-		glm::vec3 center = glm::vec3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+		//sample space is defined by sphere
+		gaussianLightField.gaussianSampledSphere.center = glm::vec3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+		const glm::vec3 center = gaussianLightField.gaussianSampledSphere.center;
+
 		float candX = maxX - minX; float candY = maxY - minY; float candZ = maxZ - minZ;
-		float maxR = max(max(candX, candY), candZ) / 2;
-		const float goldenAngle = glm::pi<float>() * (3.0f - sqrt(5.0f));  // golden angle
+		const float radius = gaussianLightField.gaussianSampledSphere.radius = max(max(candX, candY), candZ) / 2;
 		glm::vec3 up = glm::vec3(0, 0, 1);
 
-		const float offset = maxR / 16;
-		const glm::vec3 sPoint = glm::vec3();
-		//vector<glm::vec3> cameraPos = { glm::vec3(center.x + maxR, center.y, center.z) };
-		vector<glm::vec3> cameraPos = { glm::vec3(center.x + maxR, center.y, center.z), glm::vec3(center.x, center.y + maxR, center.z), glm::vec3(center.x- maxR, center.y, center.z), glm::vec3(center.x, center.y - maxR, center.z) };
-		cout << cameraNum << endl;
-		for (int i = 0; i < cameraNum; i++) {
-			//need adjustment if look vector and up vector is parallel
-			glm::mat4 viewMat = glm::lookAt(cameraPos[i], center, up);
-			gaussianLightField.viewInverse[i] = glm::inverse(viewMat);
-			/*cout << "gaussian light field[" << i << "]: \n" << gaussianLightField.viewInverse[i][0][0] << " " << gaussianLightField.viewInverse[i][0][1] << " " << gaussianLightField.viewInverse[i][0][2] << " " << gaussianLightField.viewInverse[i][0][3] << "\n" << gaussianLightField.viewInverse[i][1][0] << " " << gaussianLightField.viewInverse[i][1][1] << " " << gaussianLightField.viewInverse[i][1][2] << " " << gaussianLightField.viewInverse[i][1][3] << "\n" << gaussianLightField.viewInverse[i][2][0] << " " << gaussianLightField.viewInverse[i][2][1] << " " << gaussianLightField.viewInverse[i][2][2] << " " << gaussianLightField.viewInverse[i][2][3] << "\n" << gaussianLightField.viewInverse[i][3][0] << " " << gaussianLightField.viewInverse[i][3][1] << " " << gaussianLightField.viewInverse[i][3][2] << " " << gaussianLightField.viewInverse[i][3][3] << "\n";*/
+		glm::vec3 min = gaussianLightField.gaussianSampledSphere.center - gaussianLightField.gaussianSampledSphere.radius;
+		glm::vec3 max = gaussianLightField.gaussianSampledSphere.center + gaussianLightField.gaussianSampledSphere.radius;
+
+		gaussianLightField.gaussianSampledSphereAABB.minX = min.x;
+		gaussianLightField.gaussianSampledSphereAABB.minY = min.y;
+		gaussianLightField.gaussianSampledSphereAABB.minZ = min.z;
+		gaussianLightField.gaussianSampledSphereAABB.maxX = max.x;
+		gaussianLightField.gaussianSampledSphereAABB.maxY = max.y;
+		gaussianLightField.gaussianSampledSphereAABB.maxZ = max.z;
+
+		const float offset = gaussianLightField.gaussianSampledSphere.radius / 16;
+
+		vector<glm::vec3> vertices = {
+			glm::vec3(1, 0, 0),
+			glm::vec3(-1, 0, 0),
+			glm::vec3(0, 1, 0),
+			glm::vec3(0, -1, 0),
+			glm::vec3(0, 0, 1),
+			glm::vec3(0, 0, -1)
+		};
+
+		vector<Triangle> faces = {
+			Triangle(vertices[0], vertices[4], vertices[2]),
+			Triangle(vertices[2], vertices[4], vertices[1]),
+			Triangle(vertices[1], vertices[4], vertices[3]),
+			Triangle(vertices[3], vertices[4], vertices[0]),
+			Triangle(vertices[0], vertices[2], vertices[5]),
+			Triangle(vertices[2], vertices[1], vertices[5]),
+			Triangle(vertices[1], vertices[3], vertices[5]),
+			Triangle(vertices[3], vertices[0], vertices[5])
+		};
+
+		for (int i = 0; i < 4; i++) {
+			//iteration of this loop is to define how many times to devide the sphere. 3 = 512, 4 = 2048, 5 = 8192 vertices.
+			//I recommend to set iterations as 4, cause vulkan's image array layer is max to 2048.
+			vector<Triangle> new_faces;
+			for (auto& face : faces) {
+				glm::vec3 m1 = glm::normalize(face.v1 + face.v2);
+				glm::vec3 m2 = glm::normalize(face.v2 + face.v3);
+				glm::vec3 m3 = glm::normalize(face.v3 + face.v1);
+
+				new_faces.push_back(Triangle(m1, m2, m3));
+				new_faces.push_back(Triangle(face.v3, m3, m2));
+				new_faces.push_back(Triangle(face.v1, m1, m3));
+				new_faces.push_back(Triangle(face.v2, m2, m1));
+			}
+			faces = new_faces;
 		}
 
-		// if set sampling ray direction on cpu, use the code below.
-		//for (int k = 0; k < cameraNum; k++) {
-		//	glm::vec3 forward = glm::normalize(center - cameraPos[k]);
-		//	glm::vec3 right = glm::normalize(glm::cross(forward, up));
-		//	glm::vec3 cam_up = glm::normalize(glm::cross(right, forward));
+		vector<glm::vec3> cameraPos;
 
-		//	float fov_rad = glm::radians(90.0f);
-		//	float aspect = 1;
-		//	float tanHalfFovY = tan(fov_rad / 2.0f);
-		//	float tanHalfFovX = tanHalfFovY * aspect;
+		for (auto& face : faces) {
+			glm::vec3 barycenter = (face.v1 + face.v2 + face.v3) / glm::vec3(3.0f, 3.0f, 3.0f);
+			barycenter = glm::normalize(barycenter);
+			cameraPos.push_back(barycenter * radius + center);
+		}
+		// Need to adjust alignment
+		// add giving data to rayPosBuffer
+		gaussianLightField.samplingCameraNum = cameraNum = cameraPos.size();
+		gaussianLightField.viewInverse.resize(cameraNum);
 
-		//	for (int i = 0; i < width; i++) {
-		//		for (int j = 0; j < height; j++) {
-		//			float u = (i + 0.5f) / 16;
-		//			float v = (j + 0.5f) / 16;
-
-		//			float offsetX = (u - 0.5f) * 2.0f * tanHalfFovX;
-		//			float offsetY = (0.5f - v) * 2.0f * tanHalfFovY;
-
-		//			glm::vec3 rayCenter = center + forward + offsetX * right + offsetY * cam_up;
-
-		//			glm::mat4 viewMat = glm::lookAt(cameraPos[k], rayCenter, up);
-		//			gaussianLightField.viewInverse[k * raysNum + i * 16 + j] = glm::inverse(viewMat);
-		//		}
-		//	}
-		//}
-		
-		//testing camera. this is at (x+R, y, z), where (x, y, z) is center position of guassian object and camera is looking for.
+		for (int i = 0; i < cameraNum; i++) {
+			//need adjustment if look vector and up vector is parallel
+			glm::mat4 viewMat = glm::lookAt(cameraPos[i], gaussianLightField.gaussianSampledSphere.center, up);
+			gaussianLightField.viewInverse[i] = glm::inverse(viewMat);
+		}
 		
 		glm::mat4 persMat = glm::perspective_Vulkan_no_depth_reverse(glm::radians(135.0f), (float)(width / height), NEAR_PLANE, FAR_PLANE);
 		//method using Camera class in camera.hpp
@@ -1602,29 +1733,6 @@ public:
 		camera.updateAspectRatio(1.0f);*/
 
 		gaussianLightField.uniformDataStatic.projInverse = glm::inverse(persMat);
-		//cout << gaussianLightField.uniformDataStatic.projInverse[0][0] << " " << gaussianLightField.uniformDataStatic.projInverse[0][1] << " " << gaussianLightField.uniformDataStatic.projInverse[0][2] << " " << gaussianLightField.uniformDataStatic.projInverse[0][3] << "\n" << gaussianLightField.uniformDataStatic.projInverse[1][0] << " " << gaussianLightField.uniformDataStatic.projInverse[1][1] << " " << gaussianLightField.uniformDataStatic.projInverse[1][2] << " " << gaussianLightField.uniformDataStatic.projInverse[1][3] << "\n" << gaussianLightField.uniformDataStatic.projInverse[2][0] << " " << gaussianLightField.uniformDataStatic.projInverse[2][1] << " " << gaussianLightField.uniformDataStatic.projInverse[2][2] << " " << gaussianLightField.uniformDataStatic.projInverse[2][3] << "\n" << gaussianLightField.uniformDataStatic.projInverse[3][0] << " " << gaussianLightField.uniformDataStatic.projInverse[3][1] << " " << gaussianLightField.uniformDataStatic.projInverse[3][2] << " " << gaussianLightField.uniformDataStatic.projInverse[3][3] << endl;
-		//gaussianLightField.uniformDataDynamic.viewInverse = glm::inverse(camera.matrices.view);
-		//gaussianLightField.uniformDataDynamic.projInverse = glm::inverse(camera.matrices.perspective);
-
-
-		//sampling is like below, but i think gpu should do work with this...
-		//for (int i = 0; i < cameraNum; i++) {
-		//	//calculate sampling points on sphere by equal-area
-		//	float z = 1.0f - 2.0f * i / (cameraNum - 1);
-		//	float radius = sqrt(1.0 - z * z);
-		//	float theta = goldenAngle * i;
-
-		//	float x = radius * cos(theta);
-		//	float y = radius * sin(theta);
-
-		//	x = x * maxR + center.x;
-		//	y = y * maxR + center.y;
-		//	z = z * maxR + center.z;
-
-		//	for (int j = 0; j < sampleNum; j++) {
-				//생각해보니 ray 방향을 지정해주는건데, 이건 gpu에서 계산하는게 더 나을듯? 시간적으로나, 용량적으로나... 문제는 이러면 gpu 내에서 inverse matrix들을 계산해야 한다는 정도...
-		//	}
-		//}
 	}
 
 	void createGaussianLightFieldImages() {
@@ -1984,6 +2092,202 @@ public:
 		gaussianLightField.viewInverseBuffer.destroy();
 		
 	}
+
+	void createGaussianLightFieldBLAS() {
+		uint32_t primitiveCount = 1;
+
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&gaussianLightField.aabbBuffer, sizeof(gaussianLightField.gaussianSampledSphereAABB), &gaussianLightField.gaussianSampledSphereAABB));
+
+		// Build
+		VkAccelerationStructureGeometryKHR geometry{};
+		VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo{};
+		VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfo;
+
+		VkDeviceOrHostAddressConstKHR aabbBufferDeviceAddress{};
+		aabbBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(gaussianLightField.aabbBuffer.buffer);
+
+		geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		geometry.geometryType = VK_GEOMETRY_TYPE_AABBS_KHR;
+		geometry.geometry.aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
+		geometry.geometry.aabbs.data = aabbBufferDeviceAddress;
+		geometry.geometry.aabbs.stride = sizeof(VkAabbPositionsKHR);
+
+		buildRangeInfo.primitiveCount = primitiveCount;
+
+		pBuildRangeInfo = &buildRangeInfo;
+
+		// Get size info
+		VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
+		accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+		accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+		accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		accelerationStructureBuildGeometryInfo.geometryCount = 1;
+		accelerationStructureBuildGeometryInfo.pGeometries = &geometry;
+
+		VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
+		accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+		vkGetAccelerationStructureBuildSizesKHR(
+			device,
+			VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+			&accelerationStructureBuildGeometryInfo,
+			&primitiveCount,
+			&accelerationStructureBuildSizesInfo);
+
+		createAccelerationStructureBuffer(gaussianLightField.gaussianSampledBLAS, accelerationStructureBuildSizesInfo);
+
+		VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
+		accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+		accelerationStructureCreateInfo.buffer = gaussianLightField.gaussianSampledBLAS.buffer;
+		accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+		accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+		vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &gaussianLightField.gaussianSampledBLAS.handle);
+
+		// Create a small scratch buffer used during build of the bottom level acceleration structure
+		ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+
+		accelerationStructureBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+		accelerationStructureBuildGeometryInfo.dstAccelerationStructure = gaussianLightField.gaussianSampledBLAS.handle;
+		accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
+
+		// BLAS Size
+		blasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
+		// Build the acceleration structure on the device via a one-time command buffer submission
+		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
+		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		// Timestamp 0: BLAS build start
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 0);
+		vkCmdBuildAccelerationStructuresKHR(
+			commandBuffer,
+			1,
+			&accelerationStructureBuildGeometryInfo,
+			&pBuildRangeInfo);
+
+		// Timestamp 1: BLAS build end
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 1);
+		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
+
+		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
+		accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+		accelerationDeviceAddressInfo.accelerationStructure = gaussianLightField.gaussianSampledBLAS.handle;
+		gaussianLightField.gaussianSampledBLAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &accelerationDeviceAddressInfo);
+
+		deleteScratchBuffer(scratchBuffer);
+	}
+
+	void createGaussianLightFieldTLAS() {
+		VkTransformMatrixKHR transformMatrix = {
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f };
+
+		VkAccelerationStructureInstanceKHR instance{};
+		instance.transform = transformMatrix;
+		instance.instanceCustomIndex = 0;
+		instance.mask = 0xFF;
+		instance.instanceShaderBindingTableRecordOffset = 0;
+		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		instance.accelerationStructureReference = gaussianLightField.gaussianSampledBLAS.deviceAddress;
+
+		// Buffer for instance data
+		vks::Buffer instancesBuffer;
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&instancesBuffer,
+			sizeof(VkAccelerationStructureInstanceKHR),
+			&instance));
+
+		VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
+		instanceDataDeviceAddress.deviceAddress = getBufferDeviceAddress(instancesBuffer.buffer);
+
+		VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
+		accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+		accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		accelerationStructureGeometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+		accelerationStructureGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
+		accelerationStructureGeometry.geometry.instances.data = instanceDataDeviceAddress;
+
+		// Get size info
+		/*
+		The pSrcAccelerationStructure, dstAccelerationStructure, and mode members of pBuildInfo are ignored. Any VkDeviceOrHostAddressKHR members of pBuildInfo are ignored by this command, except that the hostAddress member of VkAccelerationStructureGeometryTrianglesDataKHR::transformData will be examined to check if it is NULL.*
+		*/
+		VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
+		accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+		accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+		accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		accelerationStructureBuildGeometryInfo.geometryCount = 1;
+		accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
+
+		uint32_t primitive_count = 1;
+
+		VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
+		accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+		vkGetAccelerationStructureBuildSizesKHR(
+			device,
+			VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+			&accelerationStructureBuildGeometryInfo,
+			&primitive_count,
+			&accelerationStructureBuildSizesInfo);
+
+		createAccelerationStructureBuffer(gaussianLightField.gaussianSampledTLAS, accelerationStructureBuildSizesInfo);
+
+		VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
+		accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+		accelerationStructureCreateInfo.buffer = gaussianLightField.gaussianSampledTLAS.buffer;
+		accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+		accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+		vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &gaussianLightField.gaussianSampledTLAS.handle);
+
+		// Create a small scratch buffer used during build of the top level acceleration structure
+		ScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+
+		VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
+		accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+		accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+		accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		accelerationBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+		accelerationBuildGeometryInfo.dstAccelerationStructure = gaussianLightField.gaussianSampledTLAS.handle;
+		accelerationBuildGeometryInfo.geometryCount = 1;
+		accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
+		accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
+
+		VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo{};
+		accelerationStructureBuildRangeInfo.primitiveCount = primitive_count;
+		accelerationStructureBuildRangeInfo.primitiveOffset = 0;
+		accelerationStructureBuildRangeInfo.firstVertex = 0;
+		accelerationStructureBuildRangeInfo.transformOffset = 0;
+		VkAccelerationStructureBuildRangeInfoKHR* accelerationBuildStructureRangeInfo = &accelerationStructureBuildRangeInfo;
+
+		// TLAS size
+		tlasSize = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+
+		// Build the acceleration structure on the device via a one-time command buffer submission
+		// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
+		VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+		// Timestamp 2: TLAS build start
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 2);
+		vkCmdBuildAccelerationStructuresKHR(
+			commandBuffer,
+			1,
+			&accelerationBuildGeometryInfo,
+			&accelerationBuildStructureRangeInfo);
+
+		// Timestamp 3: TLAS build end
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, ASBuildTimeStampQueryPool, 3);
+		vulkanDevice->flushCommandBuffer(commandBuffer, graphicsQueue);
+
+		VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
+		accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+		accelerationDeviceAddressInfo.accelerationStructure = gaussianLightField.gaussianSampledTLAS.handle;
+
+		deleteScratchBuffer(scratchBuffer);
+		instancesBuffer.destroy();
+	}
 	//light field end
 #endif
 
@@ -2099,6 +2403,10 @@ public:
 		auto loadTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 		std::cout << "Time spent for Gaussian Light Field " << loadTime << "ms" << std::endl;
 		std::cout << "--- Gaussian Light Field END ---\n";
+
+		createGaussianLightFieldBLAS();
+		createGaussianLightFieldTLAS();
+		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &gaussianLightField.gaussianSampledSphereBuffer, sizeof(GaussianSampledSphere), &gaussianLightField.gaussianSampledSphere));
 #endif
 		//gaussian light field end
 
