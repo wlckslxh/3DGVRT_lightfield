@@ -17,6 +17,8 @@
 
 #define ITERATIONS 6
 
+#define M_PI 3.14159f
+
 struct RayOption {
 	bool shadowRay;
 	bool reflection;

@@ -57,15 +57,16 @@ layout(binding = 2, set = 0) uniform uniformBufferStatic
 	Aabb aabb;
 	float minTransmittance;
 	mat4 projInverse;
+	vec3 target;
 	float hitMinGaussianResponse;
 	uint sphEvalDegree;
 } uboStatic;
-layout(std430, binding = 3, set = 0) buffer ViewInverseBlock {
-	mat4 viewInverse[];
-} viewInverseBlock;
-layout(std140, binding = 4, set = 0) buffer RayDirsBlock {
+layout(std140, binding = 3, set = 0) buffer RayDirsBlock {
 	vec4 rayDirs[];
 } rayDirsBlock;
+layout(std430, binding = 4, set = 0) buffer RayPosBlock {
+	vec4 rayPos[];
+} rayPosBlock;
 #if !BUFFER_REFERENCE
 layout(std140, binding = 5, set = 0) buffer ParticleDensities {
 	ParticleDensity d[];
@@ -120,12 +121,19 @@ void main()
 	const vec2 inUV = pixelCenter/vec2(height, width);	// pixel position in WdC
 	const uint cameraNum = gl_LaunchIDEXT.x;
 	
-	vec2 d = inUV * 2.0 - 1.0;	// pixel position in NDC
-	mat4 viewM = viewInverseBlock.viewInverse[cameraNum];
-	vec4 target = uboStatic.projInverse * vec4(d.x, d.y, 1.0f, 1.0f) ;	// (pixel position in EC) / Wc
+	const vec4 rayOrigin = rayPosBlock.rayPos[cameraNum];
+	const vec3 camPos = vec3(rayOrigin.x, rayOrigin.y, rayOrigin.z);
 	
-	vec4 rayOrigin = viewM[3];
-	vec4 rayDirection = normalize(viewM * vec4(target.xyz, 0.0f));
+	float theta = M_PI * (0.5f - inUV.y);
+	float phi = M_PI * (inUV.x - 0.5f);
+
+	vec3 forward = normalize(uboStatic.target - camPos);
+	vec3 right = normalize(cross(forward, vec3(0.0, 0.0, 1.0)));
+	vec3 up = normalize(cross(right, forward));
+	
+	vec3 localDir = vec3(cos(theta) * cos(phi), cos(theta) * sin(phi), sin(theta));
+	localDir = localDir.x * right + localDir.y * up + localDir.z * forward;
+	vec4 rayDirection = normalize(vec4(localDir, 0.0f));
 	rayDirsBlock.rayDirs[cameraNum * height * width + gl_LaunchIDEXT.y * width + gl_LaunchIDEXT.z] = rayDirection;
 	
 

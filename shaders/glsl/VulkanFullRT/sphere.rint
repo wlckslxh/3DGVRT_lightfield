@@ -1,0 +1,59 @@
+///*
+// * Sogang Univ, Graphics Lab, 2025
+// * 
+// * Sampled Gaussian Light Field Sphere
+// *
+// * Intersection shader
+// */
+
+#version 460
+#extension GL_EXT_ray_tracing : require
+#include "../base/define.glsl"
+#include "../base/geometrytypes.glsl"
+#include "../base/bufferreferences.glsl"
+#include "../base/light.glsl"
+#include "../base/pbr.glsl"
+
+struct Sphere{
+	vec3 center;
+	float radius;
+};
+
+layout(set = 0, binding = 9, std430) uniform buffer SphereBuf{
+	Sphere spheres[];
+};
+
+hitAttributeEXT vec2 attribs;
+
+void main(){
+	uint primIndex = gl_PrimitiveID;
+	Sphere s = spheres[primIndex];
+
+	float t = gl_HitText;
+	vec3 O = gl_ObjectRayOriginEXT;
+	vec3 D = gl_ObjectRayDirectionEXT;
+	
+	vec3 OC = O - s.center;
+	float b = dot(OC, D);
+	float c = dot(OC, OC) - s.radius * s.radius;
+	float disc = b * b - c;
+
+	if(disc < 0.0) return;
+
+	float sqrtDisc = sqrt(disc);
+	float t0 = -b - sqrtDIsc;
+	float t1 = -b + sqrtDisc;
+
+	float tmin = RAY_TMIN;
+	float tmax = gl_RayTmaxEXT;
+
+	if (t0 >= tmin && t0 <= tmax){
+		if (reportIntersectionEXT(t0, 0)){
+			
+		}
+	}
+
+	if (t1 >= tmin && t1 <= tmax){
+		reportIntersectionEXT(t1, 0);
+	}
+}

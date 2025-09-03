@@ -163,9 +163,10 @@ public:
 		VkDescriptorSetLayout descriptorSetLayout{ VK_NULL_HANDLE };
 
 		vks::Buffer uniformBufferStatic;
-		vks::Buffer viewInverseBuffer;
 		vks::Buffer rayDirBuffer;
 		vks::Buffer rayPosBuffer;
+		vector<glm::vec4> rayPos;
+
 		VkCommandBuffer commandBuffer{ VK_NULL_HANDLE };
 
 		VkImage image;
@@ -173,8 +174,8 @@ public:
 		VkDeviceMemory imageMemory;
 
 		unsigned int samplingCameraNum = 4;
-		unsigned int sampleImageWidth = 180; //sampled image size
-		unsigned int sampleImageHeight = 180;
+		unsigned int sampleImageWidth = 360;
+		unsigned int sampleImageHeight = 360;
 
 		std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
 		struct ShaderBindingTables {
@@ -187,7 +188,8 @@ public:
 			/* 3DGRT */
 			alignas(16) Aabb aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
 			alignas(16) float minTransmittance = 0.001f; // to be separated to Config.h?
-			alignas(16) glm::mat4 projInverse;
+			alignas(16) glm::mat4 projInverse; // need to delete
+			alignas(16) glm::vec3 sphereCenter;
 			alignas(4) float hitMinGaussianResponse = 0.0113f;	// particle kernel min response. to be separated to Config.h?
 			alignas(4) unsigned int sphEvalDegree = 3;	// n active features. to be separated to Config.h?
 #if BUFFER_REFERENCE
@@ -195,7 +197,6 @@ public:
 			uint64_t sphCoefficientBufferDeviceAddress;
 #endif
 		}uniformDataStatic;
-		vector<glm::mat4> viewInverse;
 
 		//for ray tracing sampled sphere
 		VkAabbPositionsKHR gaussianSampledSphereAABB;
@@ -1625,7 +1626,6 @@ public:
 	//light field add
 	void calculateGaussianLightFieldSamples() {
 		//calcualte gaussian light field sample points and directions of each points
-		unsigned int cameraNum = gaussianLightField.samplingCameraNum;
 		unsigned int width = gaussianLightField.sampleImageWidth;
 		unsigned int height = gaussianLightField.sampleImageHeight;
 		unsigned int raysNum = width * height;
@@ -1651,7 +1651,7 @@ public:
 
 		//sample space is defined by sphere
 		gaussianLightField.gaussianSampledSphere.center = glm::vec3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
-		const glm::vec3 center = gaussianLightField.gaussianSampledSphere.center;
+		const glm::vec3 center = gaussianLightField.uniformDataStatic.sphereCenter = gaussianLightField.gaussianSampledSphere.center;
 
 		float candX = maxX - minX; float candY = maxY - minY; float candZ = maxZ - minZ;
 		const float radius = gaussianLightField.gaussianSampledSphere.radius = max(max(candX, candY), candZ) / 2;
@@ -1706,25 +1706,19 @@ public:
 			faces = new_faces;
 		}
 
-		vector<glm::vec3> cameraPos;
+		vector<glm::vec4>& rayPos = gaussianLightField.rayPos;
 
 		for (auto& face : faces) {
 			glm::vec3 barycenter = (face.v1 + face.v2 + face.v3) / glm::vec3(3.0f, 3.0f, 3.0f);
 			barycenter = glm::normalize(barycenter);
-			cameraPos.push_back(barycenter * radius + center);
+			rayPos.push_back(glm::vec4(barycenter * radius + center, 1.0f));
 		}
 		// Need to adjust alignment
 		// add giving data to rayPosBuffer
-		gaussianLightField.samplingCameraNum = cameraNum = cameraPos.size();
-		gaussianLightField.viewInverse.resize(cameraNum);
-
-		for (int i = 0; i < cameraNum; i++) {
-			//need adjustment if look vector and up vector is parallel
-			glm::mat4 viewMat = glm::lookAt(cameraPos[i], gaussianLightField.gaussianSampledSphere.center, up);
-			gaussianLightField.viewInverse[i] = glm::inverse(viewMat);
-		}
+		gaussianLightField.samplingCameraNum = rayPos.size();
+		cout << rayPos.size() << " " << gaussianLightField.samplingCameraNum << endl;
 		
-		glm::mat4 persMat = glm::perspective_Vulkan_no_depth_reverse(glm::radians(135.0f), (float)(width / height), NEAR_PLANE, FAR_PLANE);
+		glm::mat4 persMat = glm::perspective_Vulkan_no_depth_reverse(glm::radians(170.0f), (float)(width / height), NEAR_PLANE, FAR_PLANE);
 		//method using Camera class in camera.hpp
 		/*Camera camera;
 		camera.setPosition(cameraPos);
@@ -1783,17 +1777,13 @@ public:
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1),
 			// binding 2 : static info
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-			// binding 3, 4 : viewInverseMatrix, rayDirs
-			// binding 5, g : buffer references(ParticleDensities, ParticleSphCoefficients)
+			// binding 3, 4 : rayDirs, rayPos
+			// binding 5, 6 : buffer references(ParticleDensities, ParticleSphCoefficients)
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4),
 #if SPLIT_BLAS && !RAY_QUERY
-			// binding 6 : primitives id
+			// binding 7 : primitives id
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),
 #endif 
-//#if ENABLE_HIT_COUNTS && !RAY_QUERY
-//			// binding 7 : Ray Hit Count
-//			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),
-//#endif
 		};
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 1);
 
@@ -1823,16 +1813,16 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 1),
 			// Binding 2: Uniform buffer Static
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 2),
-			// Binding 3: Camera Information - viewInverseMatrix
+			// Binding 3 : rayDirs
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 3),
-			// Binding 4 : rayDirs
+			// Binding 4 : rayPos
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 4),
 			// Binding 5: Storage buffer - Particle Densities
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 5),
 			// Binding 6: Storage buffer - Particle Sph Coefficients
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 6),
 	#if SPLIT_BLAS && !RAY_QUERY
-			// Binding 7: Storage buffer - primitive Id
+			// Binding 8: Storage buffer - primitive Id
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, 7),
 	#endif
 	//#if ENABLE_HIT_COUNTS
@@ -1877,10 +1867,10 @@ public:
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor),
 				// Binding 2: Uniform data Static
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &gaussianLightField.uniformBufferStatic.descriptor),
-				// Binding 3: viewInverseMatrix
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &gaussianLightField.viewInverseBuffer.descriptor),
-				// Binding 4: rayDir
-				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &gaussianLightField.rayDirBuffer.descriptor),
+				// Binding 3: rayDir
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &gaussianLightField.rayDirBuffer.descriptor),
+				// Binding 4: rayPos
+				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &gaussianLightField.rayPosBuffer.descriptor),
 				// Binding 5: particle densities
 				vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, &particleDensities.descriptor),
 				// Binding 6: particle Sph Coefficients
@@ -2051,8 +2041,7 @@ public:
 		submitInfo.pCommandBuffers = &gaussianLightField.commandBuffer;
 		
 		VK_CHECK_RESULT(vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
-		//VK_CHECK_RESULT(vkQueueWaitIdle(graphicsQueue)); //여기가 더 정확한 에러
-		VK_CHECK_RESULT(vkDeviceWaitIdle(device));// 여기도 에러가 나오는거 보니까 queue submit 과정에서 발생하는 듯 함
+		VK_CHECK_RESULT(vkDeviceWaitIdle(device));
 
 		//for check sampling direction and position is correct or not
 		vks::Buffer stagingBuffer;
@@ -2088,9 +2077,7 @@ public:
 		vkDestroyPipelineLayout(device, gaussianLightField.pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, gaussianLightField.descriptorSetLayout, nullptr);
 
-		gaussianLightField.uniformBufferStatic.destroy();
-		gaussianLightField.viewInverseBuffer.destroy();
-		
+		gaussianLightField.uniformBufferStatic.destroy();		
 	}
 
 	void createGaussianLightFieldBLAS() {
@@ -2385,9 +2372,9 @@ public:
 		VkMemoryPropertyFlags memoryFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		vulkanDevice->createAndCopyToDeviceBuffer(&gaussianLightField.uniformDataStatic, gaussianLightField.uniformBufferStatic, sizeof(gaussianLightField.uniformDataStatic), graphicsQueue, usageFlags, memoryFlags);
 
-		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &gaussianLightField.viewInverseBuffer, gaussianLightField.viewInverse.size() * sizeof(glm::mat4), gaussianLightField.viewInverse.data()));
-
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &gaussianLightField.rayDirBuffer, sizeof(glm::vec4) * gaussianLightField.sampleImageHeight * gaussianLightField.sampleImageWidth * gaussianLightField.samplingCameraNum, nullptr));
+
+		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &gaussianLightField.rayPosBuffer, gaussianLightField.samplingCameraNum * sizeof(glm::vec4), gaussianLightField.rayPos.data()));
 
 		createGaussianLightFieldDescriptorSets();
 		
@@ -2406,7 +2393,8 @@ public:
 
 		createGaussianLightFieldBLAS();
 		createGaussianLightFieldTLAS();
-		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &gaussianLightField.gaussianSampledSphereBuffer, sizeof(GaussianSampledSphere), &gaussianLightField.gaussianSampledSphere));
+		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &gaussianLightField.gaussianSampledSphereBuffer, sizeof(GaussianSampledSphere), &gaussianLightField.gaussianSampledSphere));
+		//현재 여기서 문제 발생. device local bit 인데 data를 cpu에서 gpu로 mapping 하려는 시도를 해서 그런듯 함.
 #endif
 		//gaussian light field end
 
