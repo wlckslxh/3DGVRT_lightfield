@@ -165,7 +165,8 @@ public:
 		vks::Buffer uniformBufferStatic;
 		vks::Buffer rayDirBuffer;
 		vks::Buffer rayPosBuffer;
-		vector<glm::vec4> rayPos;
+		vector<glm::vec2> rayPos;
+		vector<glm::vec2> rayDir;
 
 		VkCommandBuffer commandBuffer{ VK_NULL_HANDLE };
 
@@ -173,9 +174,10 @@ public:
 		VkImageView imageView;
 		VkDeviceMemory imageMemory;
 
-		unsigned int samplingCameraNum = 4;
-		unsigned int sampleImageWidth = 360;
-		unsigned int sampleImageHeight = 360;
+		const unsigned int sphereRedivisionLevel = SUBDIVISION_LEVEL;
+		unsigned int samplingCameraNum;
+		unsigned int sampleImageWidth;
+		unsigned int sampleImageHeight;
 
 		std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
 		struct ShaderBindingTables {
@@ -188,10 +190,12 @@ public:
 			/* 3DGRT */
 			alignas(16) Aabb aabb = { -100.0f, -100.0f, -100.0f, 100.0f, 100.0f, 100.0f };
 			alignas(16) float minTransmittance = 0.001f; // to be separated to Config.h?
-			alignas(16) glm::mat4 projInverse; // need to delete
-			alignas(16) glm::vec3 sphereCenter;
+			alignas(16) glm::vec4 sphereInfo;
 			alignas(4) float hitMinGaussianResponse = 0.0113f;	// particle kernel min response. to be separated to Config.h?
 			alignas(4) unsigned int sphEvalDegree = 3;	// n active features. to be separated to Config.h?
+			alignas(4) unsigned int level;
+			alignas(4) unsigned int width = SAMPLED_CAMERA_NUM_WIDTH;
+			alignas(4) unsigned int height = SAMPLED_CAMERA_NUM_HEIGHT;
 #if BUFFER_REFERENCE
 			uint64_t densityBufferDeviceAddress;
 			uint64_t sphCoefficientBufferDeviceAddress;
@@ -207,12 +211,33 @@ public:
 		AccelerationStructure gaussianSampledTLAS{};
 	} gaussianLightField;
 
-	struct Triangle {
-		glm::vec3 v1, v2, v3;
-		Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c)
-			: v1(a), v2(b), v3(c) {
+	struct TriangleIdx {
+		int v1, v2, v3;
+		string label;
+		TriangleIdx(const int& x, const int& y, const int& z, const string& c) {
+			v1 = x;
+			v2 = y;
+			v3 = z;
+			label = c;
+		};
+	};
+
+	//for checking redundancy of sphere redivision vertices
+	struct Vec3Hash {
+		size_t operator()(const glm::vec3& v) const noexcept {
+			auto h1 = std::hash<float>()(v.x);
+			auto h2 = std::hash<float>()(v.y);
+			auto h3 = std::hash<float>()(v.z);
+			return h1 ^ (h2 << 1) ^ (h3 << 2);
 		}
 	};
+	struct Vec3Eq {
+		bool operator()(const glm::vec3& a, const glm::vec3& b) const noexcept {
+			return glm::length(a - b) < 1e-6f; // epsilon 비교
+		}
+	};
+
+	std::unordered_map<glm::vec3, int, Vec3Hash, Vec3Eq> vertexMap;
 #endif
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -1624,11 +1649,47 @@ public:
 
 #if GAUSSIAN_LIGHT_FIELD
 	//light field add
+	vector<glm::vec3> vertices = {
+		glm::vec3(1, 0, 0),
+		glm::vec3(-1, 0, 0),
+		glm::vec3(0, 1, 0),
+		glm::vec3(0, -1, 0),
+		glm::vec3(0, 0, 1),
+		glm::vec3(0, 0, -1)
+	};
+
+	int addVertex(const glm::vec3& v) {
+		auto it = vertexMap.find(v);
+		if (it != vertexMap.end()) {
+			return it->second; // 이미 있으면 기존 인덱스 반환
+		}
+		int idx = (int)vertices.size();
+		vertices.push_back(v);   // 새 정점 추가
+		vertexMap[v] = idx;      // 정점 v → 인덱스 idx 매핑
+		return idx;
+	}
+
 	void calculateGaussianLightFieldSamples() {
+		//VkPhysicalDeviceProperties props{};
+		//vkGetPhysicalDeviceProperties(physicalDevice, &props);
+
+		//// work group 관련 최대값
+		//std::cout << "maxComputeWorkGroupCount : "
+		//	<< props.limits.maxComputeWorkGroupCount[0] << ", "
+		//	<< props.limits.maxComputeWorkGroupCount[1] << ", "
+		//	<< props.limits.maxComputeWorkGroupCount[2] << std::endl;
+
+		//std::cout << "maxComputeWorkGroupSize : "
+		//	<< props.limits.maxComputeWorkGroupSize[0] << ", "
+		//	<< props.limits.maxComputeWorkGroupSize[1] << ", "
+		//	<< props.limits.maxComputeWorkGroupSize[2] << std::endl;
+
+		//std::cout << "maxComputeWorkGroupInvocations : "
+		//	<< props.limits.maxComputeWorkGroupInvocations << std::endl;
+
 		//calcualte gaussian light field sample points and directions of each points
-		unsigned int width = gaussianLightField.sampleImageWidth;
-		unsigned int height = gaussianLightField.sampleImageHeight;
-		unsigned int raysNum = width * height;
+		const unsigned int level = gaussianLightField.sphereRedivisionLevel;
+		gaussianLightField.uniformDataStatic.level = level;
 		
 		float minX, minY, minZ, maxX, maxY, maxZ;
 		minX = minY = minZ = FLT_MAX;
@@ -1651,10 +1712,11 @@ public:
 
 		//sample space is defined by sphere
 		gaussianLightField.gaussianSampledSphere.center = glm::vec3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
-		const glm::vec3 center = gaussianLightField.uniformDataStatic.sphereCenter = gaussianLightField.gaussianSampledSphere.center;
+		const glm::vec3 center = gaussianLightField.gaussianSampledSphere.center;
 
 		float candX = maxX - minX; float candY = maxY - minY; float candZ = maxZ - minZ;
 		const float radius = gaussianLightField.gaussianSampledSphere.radius = max(max(candX, candY), candZ) / 2;
+		gaussianLightField.uniformDataStatic.sphereInfo = glm::vec4(center, radius);
 		glm::vec3 up = glm::vec3(0, 0, 1);
 
 		glm::vec3 min = gaussianLightField.gaussianSampledSphere.center - gaussianLightField.gaussianSampledSphere.radius;
@@ -1669,56 +1731,84 @@ public:
 
 		const float offset = gaussianLightField.gaussianSampledSphere.radius / 16;
 
-		vector<glm::vec3> vertices = {
-			glm::vec3(1, 0, 0),
-			glm::vec3(-1, 0, 0),
-			glm::vec3(0, 1, 0),
-			glm::vec3(0, -1, 0),
-			glm::vec3(0, 0, 1),
-			glm::vec3(0, 0, -1)
+		for (int i = 0; i < 6; i++) {
+			auto& vertex = vertices[i];
+			vertexMap[vertex] = i;
+		}
+
+		vector<TriangleIdx> faces = {
+			//these indexes are (z, x, y) order
+			TriangleIdx(4, 0, 2, "A0"),
+			TriangleIdx(4, 2, 1, "A1"),
+			TriangleIdx(4, 1, 3, "A2"),
+			TriangleIdx(4, 3, 0, "A3"),
+			TriangleIdx(5, 0, 2, "B0"),
+			TriangleIdx(5, 2, 1, "B1"),
+			TriangleIdx(5, 1, 3, "B2"),
+			TriangleIdx(5, 3, 0, "B3"),
 		};
 
-		vector<Triangle> faces = {
-			Triangle(vertices[0], vertices[4], vertices[2]),
-			Triangle(vertices[2], vertices[4], vertices[1]),
-			Triangle(vertices[1], vertices[4], vertices[3]),
-			Triangle(vertices[3], vertices[4], vertices[0]),
-			Triangle(vertices[0], vertices[2], vertices[5]),
-			Triangle(vertices[2], vertices[1], vertices[5]),
-			Triangle(vertices[1], vertices[3], vertices[5]),
-			Triangle(vertices[3], vertices[0], vertices[5])
-		};
-
-		for (int i = 0; i < 4; i++) {
-			//iteration of this loop is to define how many times to devide the sphere. 3 = 512, 4 = 2048, 5 = 8192 vertices.
+		for (int i = 0; i < level; i++) {
+			//vertices of devided sphere would be used for ray origin positions
+			//iteration of this loop is to define how many times to devide the sphere. 3 = 512, 4 = 2048, 5 = 8192 meshes.
 			//I recommend to set iterations as 4, cause vulkan's image array layer is max to 2048.
-			vector<Triangle> new_faces;
+			vector<TriangleIdx> new_faces;
 			for (auto& face : faces) {
-				glm::vec3 m1 = glm::normalize(face.v1 + face.v2);
-				glm::vec3 m2 = glm::normalize(face.v2 + face.v3);
-				glm::vec3 m3 = glm::normalize(face.v3 + face.v1);
+				glm::vec3 v1 = vertices[face.v1];
+				glm::vec3 v2 = vertices[face.v2];
+				glm::vec3 v3 = vertices[face.v3];
 
-				new_faces.push_back(Triangle(m1, m2, m3));
-				new_faces.push_back(Triangle(face.v3, m3, m2));
-				new_faces.push_back(Triangle(face.v1, m1, m3));
-				new_faces.push_back(Triangle(face.v2, m2, m1));
+				glm::vec3 m1 = glm::normalize(v2 + v3);
+				glm::vec3 m2 = glm::normalize(v3 + v1);
+				glm::vec3 m3 = glm::normalize(v1 + v2);
+
+				//detecting redundancy of vertices
+				int i1 = addVertex(m1);
+				int i2 = addVertex(m2);
+				int i3 = addVertex(m3);
+
+				string pLabel = face.label;
+
+				new_faces.push_back(TriangleIdx(i1, i2, i3, pLabel + "0"));
+				new_faces.push_back(TriangleIdx(face.v1, i3, i2, pLabel + "1"));
+				new_faces.push_back(TriangleIdx(i3, face.v2, i1, pLabel + "2"));
+				new_faces.push_back(TriangleIdx(i2, i1, face.v3, pLabel + "3"));
 			}
 			faces = new_faces;
 		}
 
-		vector<glm::vec4>& rayPos = gaussianLightField.rayPos;
-
-		for (auto& face : faces) {
-			glm::vec3 barycenter = (face.v1 + face.v2 + face.v3) / glm::vec3(3.0f, 3.0f, 3.0f);
-			barycenter = glm::normalize(barycenter);
-			rayPos.push_back(glm::vec4(barycenter * radius + center, 1.0f));
+		gaussianLightField.samplingCameraNum = (vertices.size() + gaussianLightField.uniformDataStatic.width * gaussianLightField.uniformDataStatic.height - 1) / (gaussianLightField.uniformDataStatic.width * gaussianLightField.uniformDataStatic.height);
+		gaussianLightField.sampleImageWidth = pow(2, level + 1) * gaussianLightField.uniformDataStatic.width;
+		gaussianLightField.sampleImageHeight = pow(2, level + 2) * gaussianLightField.uniformDataStatic.height;
+		
+		vector<glm::vec2>& rayPos = gaussianLightField.rayPos;
+		vector<glm::vec2>& rayDir = gaussianLightField.rayDir;
+		
+		for (auto& v : vertices) {
+			float phi = atan2(v.z, sqrt(v.x * v.x + v.y * v.y));
+			float theta = atan2(v.y, v.x);
+			
+			rayPos.push_back(glm::vec2(theta, phi));
 		}
+		
+		//barycentric position will be used for ray directions
+		for (auto& face : faces) {
+			glm::vec3 barycenter = (vertices[face.v1] + vertices[face.v2] + vertices[face.v3]) / glm::vec3(3.0f, 3.0f, 3.0f);
+			barycenter = glm::normalize(barycenter);
+			float phi = atan2(barycenter.z, sqrt(barycenter.x * barycenter.x + barycenter.y * barycenter.y));
+			float theta = atan2(barycenter.y, barycenter.x);
+			
+			rayDir.push_back(glm::vec2(theta, phi));
+		}
+		cout << gaussianLightField.samplingCameraNum << endl;
+		//cout << gaussianLightField.samplingCameraNum * gaussianLightField.sampleImageHeight * gaussianLightField.sampleImageWidth << " " << rayPos.size() * rayDir.size() << endl;
+		//cout << rayPos.size() / (gaussianLightField.uniformDataStatic.width * gaussianLightField.uniformDataStatic.height) << endl;
+		cout << "current calculation needs : " << rayPos.size() * rayDir.size() << endl;
+		//vec4 rayDirection = vec4(cos(phi_d) * cos(theta_d), cos(phi_d) * sin(theta_d), sin(phi_d), 0.0f);
+
 		// Need to adjust alignment
 		// add giving data to rayPosBuffer
-		gaussianLightField.samplingCameraNum = rayPos.size();
-		cout << rayPos.size() << " " << gaussianLightField.samplingCameraNum << endl;
 		
-		glm::mat4 persMat = glm::perspective_Vulkan_no_depth_reverse(glm::radians(170.0f), (float)(width / height), NEAR_PLANE, FAR_PLANE);
 		//method using Camera class in camera.hpp
 		/*Camera camera;
 		camera.setPosition(cameraPos);
@@ -1726,7 +1816,6 @@ public:
 		camera.setPerspective(90.0f, 1, NEAR_PLANE, FAR_PLANE);
 		camera.updateAspectRatio(1.0f);*/
 
-		gaussianLightField.uniformDataStatic.projInverse = glm::inverse(persMat);
 	}
 
 	void createGaussianLightFieldImages() {
@@ -1751,7 +1840,9 @@ public:
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = memReqs.size;
+		//cout << memReqs.size << " " << gaussianLightField.samplingCameraNum * gaussianLightField.sampleImageHeight * gaussianLightField.sampleImageWidth * 4 << endl;
 		allocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		//below crashes from level 7.
 		VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &gaussianLightField.imageMemory));
 		VK_CHECK_RESULT(vkBindImageMemory(device, gaussianLightField.image, gaussianLightField.imageMemory, 0));
 
@@ -1764,7 +1855,7 @@ public:
 		viewInfo.subresourceRange.baseMipLevel = 0;
 		viewInfo.subresourceRange.levelCount = 1;
 		viewInfo.subresourceRange.baseArrayLayer = 0;
-		viewInfo.subresourceRange.layerCount = gaussianLightField.samplingCameraNum;
+		viewInfo.subresourceRange.layerCount = imageInfo.arrayLayers;
 		VK_CHECK_RESULT(vkCreateImageView(device, &viewInfo, nullptr, &gaussianLightField.imageView));
 	}
 
@@ -2018,10 +2109,10 @@ public:
 		vkCmdBindPipeline(gaussianLightField.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, gaussianLightField.pipeline);
 
 		vkCmdBindDescriptorSets(gaussianLightField.commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, gaussianLightField.pipelineLayout,	0, 1, &gaussianLightField.descriptorSet, 0, nullptr);
-
+		
 		VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-		vkCmdTraceRaysKHR(gaussianLightField.commandBuffer, &gaussianLightField.shaderBindingTables.raygen.stridedDeviceAddressRegion, &gaussianLightField.shaderBindingTables.miss.stridedDeviceAddressRegion, &gaussianLightField.shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, gaussianLightField.samplingCameraNum, gaussianLightField.sampleImageHeight, gaussianLightField.sampleImageWidth);
-
+		vkCmdTraceRaysKHR(gaussianLightField.commandBuffer, &gaussianLightField.shaderBindingTables.raygen.stridedDeviceAddressRegion, &gaussianLightField.shaderBindingTables.miss.stridedDeviceAddressRegion, &gaussianLightField.shaderBindingTables.hit.stridedDeviceAddressRegion, &emptySbtEntry, gaussianLightField.rayPos.size(), gaussianLightField.rayDir.size(), 1);
+		
 		//VkImageMemoryBarrier postBarrier{};
 		//postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		//postBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -2044,20 +2135,23 @@ public:
 		VK_CHECK_RESULT(vkDeviceWaitIdle(device));
 
 		//for check sampling direction and position is correct or not
+#if IMAGE_CHECK
 		vks::Buffer stagingBuffer;
 		VkDeviceSize totalImageSize = gaussianLightField.samplingCameraNum * gaussianLightField.sampleImageWidth * gaussianLightField.sampleImageHeight * 4;
-
+		
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, totalImageSize, nullptr));
 		vulkanDevice->copyImagesToBuffer(gaussianLightField.image, stagingBuffer, graphicsQueue, VK_IMAGE_LAYOUT_GENERAL, gaussianLightField.sampleImageWidth, gaussianLightField.sampleImageHeight, gaussianLightField.samplingCameraNum);
 		VK_CHECK_RESULT(vkMapMemory(device, stagingBuffer.memory, 0, stagingBuffer.size, 0, &stagingBuffer.mapped));
 
 		int unsuccess = 0;
-		const int imageSize = gaussianLightField.sampleImageHeight * gaussianLightField.sampleImageWidth * 4;
-		for (int i = 0; i < gaussianLightField.samplingCameraNum; i++) {
+		const unsigned int imageSize = gaussianLightField.sampleImageHeight * gaussianLightField.sampleImageWidth * 4;
+		for (unsigned int i = 0; i < gaussianLightField.samplingCameraNum; i++) {
+			if (i < gaussianLightField.samplingCameraNum - 2) continue;
 			std::ostringstream oss;
 			oss << "sampling_cam" << std::setw(4) << std::setfill('0') << i << ".png";
 			std::string fileName = oss.str();
 			uint8_t* imageStart = (uint8_t*)stagingBuffer.mapped + i * imageSize;
+			
 			int success = stbi_write_png(fileName.c_str(), gaussianLightField.sampleImageWidth, gaussianLightField.sampleImageHeight, 4, imageStart, gaussianLightField.sampleImageWidth * 4);
 		}
 
@@ -2070,6 +2164,7 @@ public:
 
 		vkUnmapMemory(device, stagingBuffer.memory);
 		vkFreeMemory(device, stagingBuffer.memory, nullptr);
+#endif
 	}
 
 	void cleanupGaussianLightFieldComponents() {
@@ -2372,9 +2467,9 @@ public:
 		VkMemoryPropertyFlags memoryFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		vulkanDevice->createAndCopyToDeviceBuffer(&gaussianLightField.uniformDataStatic, gaussianLightField.uniformBufferStatic, sizeof(gaussianLightField.uniformDataStatic), graphicsQueue, usageFlags, memoryFlags);
 
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &gaussianLightField.rayDirBuffer, sizeof(glm::vec4) * gaussianLightField.sampleImageHeight * gaussianLightField.sampleImageWidth * gaussianLightField.samplingCameraNum, nullptr));
+		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &gaussianLightField.rayDirBuffer, sizeof(glm::vec2) * gaussianLightField.rayDir.size(), gaussianLightField.rayDir.data()));
 
-		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &gaussianLightField.rayPosBuffer, gaussianLightField.samplingCameraNum * sizeof(glm::vec4), gaussianLightField.rayPos.data()));
+		VK_CHECK_RESULT(vulkanDevice->createAndMapBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &gaussianLightField.rayPosBuffer, gaussianLightField.rayPos.size() * sizeof(glm::vec2), gaussianLightField.rayPos.data()));
 
 		createGaussianLightFieldDescriptorSets();
 		

@@ -605,7 +605,6 @@ namespace vks
 			imgLayout,
 			subresourceRange);
 
-		//여기서 에러 발생
 		flushCommandBuffer(copyCmdBuf, queue, true);
 	}
 

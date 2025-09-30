@@ -66,6 +66,13 @@
 // ---------- gaussian light field ---------- //
 #define GAUSSIAN_LIGHT_FIELD 1
 
+#if GAUSSIAN_LIGHT_FIELD
+#define IMAGE_CHECK 1
+#define SUBDIVISION_LEVEL 7
+#define SAMPLED_CAMERA_NUM_WIDTH 8
+#define SAMPLED_CAMERA_NUM_HEIGHT 8
+#endif
+
 #if ASSET == 0
 #define ASSET_PATH "3DGRTModels/lego/"
 #define PLY_FILE "lego_3dgrt.ply"

@@ -56,16 +56,18 @@ layout(binding = 2, set = 0) uniform uniformBufferStatic
 {
 	Aabb aabb;
 	float minTransmittance;
-	mat4 projInverse;
-	vec3 target;
+	vec4 sphereInfo;
 	float hitMinGaussianResponse;
 	uint sphEvalDegree;
+	uint level;
+	uint width;
+	uint height;
 } uboStatic;
-layout(std140, binding = 3, set = 0) buffer RayDirsBlock {
-	vec4 rayDirs[];
+layout(std430, binding = 3, set = 0) buffer RayDirsBlock {
+	vec2 rayDirs[];
 } rayDirsBlock;
 layout(std430, binding = 4, set = 0) buffer RayPosBlock {
-	vec4 rayPos[];
+	vec2 rayPos[];
 } rayPosBlock;
 #if !BUFFER_REFERENCE
 layout(std140, binding = 5, set = 0) buffer ParticleDensities {
@@ -115,27 +117,18 @@ void trace(vec3 rayOri, vec3 rayDir, const float tmin, const float tmax){
 void main()
 {
 	// set ray origin, direction
-	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.yz) + vec2(0.5);	// pixel position
-	const uint height = gl_LaunchSizeEXT.y;
-	const uint width = gl_LaunchSizeEXT.z;
-	const vec2 inUV = pixelCenter/vec2(height, width);	// pixel position in WdC
 	const uint cameraNum = gl_LaunchIDEXT.x;
+	const uint rayNum = gl_LaunchIDEXT.y;
 	
-	const vec4 rayOrigin = rayPosBlock.rayPos[cameraNum];
-	const vec3 camPos = vec3(rayOrigin.x, rayOrigin.y, rayOrigin.z);
-	
-	float theta = M_PI * (0.5f - inUV.y);
-	float phi = M_PI * (inUV.x - 0.5f);
+	const float theta_p = rayPosBlock.rayPos[cameraNum][0];
+	const float phi_p = rayPosBlock.rayPos[cameraNum][1];
+	const float theta_d = rayDirsBlock.rayDirs[rayNum][0];
+	const float phi_d = rayDirsBlock.rayDirs[rayNum][1];
+	const vec3 center = vec3(uboStatic.sphereInfo[0], uboStatic.sphereInfo[1], uboStatic.sphereInfo[2]);
+	const float radius = uboStatic.sphereInfo[3];
 
-	vec3 forward = normalize(uboStatic.target - camPos);
-	vec3 right = normalize(cross(forward, vec3(0.0, 0.0, 1.0)));
-	vec3 up = normalize(cross(right, forward));
-	
-	vec3 localDir = vec3(cos(theta) * sin(phi), sin(theta), cos(theta) * cos(phi));
-	localDir = localDir.x * right + localDir.y * up + localDir.z * forward;
-	vec4 rayDirection = normalize(vec4(localDir, 0.0f));
-	rayDirsBlock.rayDirs[cameraNum * height * width + gl_LaunchIDEXT.y * width + gl_LaunchIDEXT.z] = rayDirection;
-	
+	vec4 rayOrigin = vec4(cos(phi_p) * cos(theta_p) * radius + center.x, cos(phi_p) * sin(theta_p) * radius + center.y, sin(phi_p) * radius + center.z, 1.0f);
+	vec4 rayDirection = vec4(cos(phi_d) * cos(theta_d), cos(phi_d) * sin(theta_d), sin(phi_d), 0.0f);
 
 	/*** 3dgrt style ***/
 	vec4 rayRadiance = vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -197,8 +190,50 @@ void main()
 			}
 		}
 	}
-	//rayRadiance = vec4(0.0, 1.0, 0.0, 1.0);
-    imageStore(image, ivec3(gl_LaunchIDEXT.y, gl_LaunchIDEXT.z, cameraNum), rayRadiance);
+	
+	uint widthIdx = 0;
+	uint heightIdx = 0;
+	const uint sampleNum = gl_LaunchSizeEXT.y;
+	const uint level = uboStatic.level;
+	uint stride = 1;
+	uint index = rayNum;
+
+	uint i = 0;
+	for(i = 0; i <= level; i++){
+		uint mod_res = index % 4u;
+		if(mod_res == 1u) {
+			widthIdx += stride;
+			//rayRadiance = vec4(1.0, 0.0, 0.0, 1.0);
+		}
+		else if(mod_res == 2u) {
+			heightIdx += stride;
+			//rayRadiance = vec4(0.0, 0.0, 1.0, 1.0);
+		}
+		else if(mod_res == 3u) {
+			widthIdx += stride;
+			heightIdx += stride;
+			//rayRadiance = vec4(0.0, 1.0, 0.0, 1.0);
+		}
+		//else rayRadiance = vec4(0.0, 1.0, 0.0, 1.0);
+		stride *= 2;
+		index /= 4;
+	}
+	if(rayNum >= sampleNum / 2) heightIdx += stride;
+
+	widthIdx += (cameraNum % uboStatic.width) * stride;
+	heightIdx += stride * 2 * ((cameraNum % (uboStatic.width * uboStatic.height)) / uboStatic.width);
+
+	uint imageNum = cameraNum / (uboStatic.width * uboStatic.height);
+	/*if(imageNum == 1023) imageNum = 0;
+	if(imageNum == 1024) {rayRadiance = vec4(0.0, 1.0, 0.0, 1.0);
+		imageNum = 1023;
+	}*/
+	ivec3 size = imageSize(image);
+	if(imageNum >= size.z){
+		imageNum -= 1;
+		rayRadiance = vec4(1.0, 0.0, 0.0, 1.0);
+	}
+    imageStore(image, ivec3(widthIdx, heightIdx, imageNum), rayRadiance);
 //	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(rayHitDistance / 10.0f, rayHitDistance / 10.0f, rayHitDistance / 10.0f, 1.0f));
 
 #if ENABLE_HIT_COUNTS
